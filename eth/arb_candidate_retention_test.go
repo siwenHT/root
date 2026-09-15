@@ -166,6 +166,9 @@ func TestRunCandidateT0T2Isolation(t *testing.T) {
 	if res.PostState == nil {
 		t.Fatal("successful candidate must produce a T2 post state")
 	}
+	if got := candidateExecutionGas(res); got != res.Candidate.UsedGas {
+		t.Fatalf("candidate metering must exclude prefix gas: got=%d candidate=%d", got, res.Candidate.UsedGas)
+	}
 
 	t0 := res.PrefixPostState.GetBalance(sender)
 	t2 := res.PostState.GetBalance(sender)

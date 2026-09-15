@@ -124,15 +124,7 @@ func (api *ArbAPI) mapPrefixOutcome(parentHandle string, ident arb.HandleIdentit
 // mapCandidateOutcome maps a candidate result. Signed is always false (§8.3); the
 // post handle appears only when prefix AND candidate all succeeded.
 func (api *ArbAPI) mapCandidateOutcome(parentHandle string, ident arb.HandleIdentity, res *CandidateResult, budget *arb.ReadBudget) *arb.JobOutcome {
-	gas := uint64(0)
-	for _, o := range res.PrefixOutcomes {
-		if o.Class.ReceiptTrusted {
-			gas += o.UsedGas
-		}
-	}
-	if res.Candidate != nil && res.Candidate.Class.ReceiptTrusted {
-		gas += res.Candidate.UsedGas
-	}
+	gas := candidateExecutionGas(res)
 	success := res.PrefixCompleted && res.Candidate != nil && res.Candidate.Class.Status == arb.StatusSuccess
 	post := ""
 	if success && res.PostState != nil {
@@ -158,6 +150,15 @@ func (api *ArbAPI) mapCandidateOutcome(parentHandle string, ident arb.HandleIden
 		PostHandle: post,
 		ErrCode:    code,
 	}
+}
+
+// Candidate metering is used to size OUR final transaction. Prefix gas belongs
+// to the observed target and must never inflate or reject our execution envelope.
+func candidateExecutionGas(res *CandidateResult) uint64 {
+	if res.Candidate != nil && res.Candidate.Class.ReceiptTrusted {
+		return res.Candidate.UsedGas
+	}
+	return 0
 }
 
 // measureRetention fills out.RetainedT0/RetainedT2 with the §391 base-token balance of
