@@ -39,6 +39,7 @@ func TestRunCandidateCapturesTopLevelRevertData(t *testing.T) {
 	x.base.SetCode(contract, []byte{0x63, 0xde, 0xad, 0xbe, 0xef, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xfd}, tracing.CodeChangeUnspecified)
 
 	ours := candidateEnvForKey1(0, contract, big.NewInt(0), x.baseFee())
+	ours.GasLimit = 100_000
 	res, err := x.RunCandidate(nil, ours, PurposeDiagnostic, newReadBudget(1_000_000, 0))
 	if err != nil {
 		t.Fatal(err)
