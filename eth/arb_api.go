@@ -310,10 +310,18 @@ func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 		for _, t := range s.InitializedTicks {
 			ticks = append(ticks, map[string]any{"index": t.Index, "liquidity_gross": t.LiquidityGross, "liquidity_net": t.LiquidityNet})
 		}
-		return map[string]any{"manager": s.Manager, "locator": s.Manager, "kind": "infinity_cl", "pool_key": s.PoolKey,
+		wire := map[string]any{"manager": s.Manager, "locator": s.Manager, "kind": "infinity_cl", "pool_key": s.PoolKey,
 			"hook": s.Hook, "sqrt_price_x96": s.SqrtPriceX96, "tick": s.Tick, "liquidity": s.Liquidity,
 			"bitmap_words": words, "initialized_ticks": ticks, "coverage_min_tick": s.CoverageMinTick,
-			"coverage_max_tick": s.CoverageMaxTick, "effective_fee_num": s.EffectiveFeeNum, "effective_fee_den": s.EffectiveFeeDen}
+			"coverage_max_tick": s.CoverageMaxTick}
+		// Do not emit an all-zero pair for a dynamic pool.  Rust treats the
+		// absence of both fields as unresolved and will fail closed until a
+		// hook-aware amount/direction probe supplies the effective fee.
+		if s.EffectiveFeeResolved && s.EffectiveFeeNum != "" && s.EffectiveFeeDen != "" {
+			wire["effective_fee_num"] = s.EffectiveFeeNum
+			wire["effective_fee_den"] = s.EffectiveFeeDen
+		}
+		return wire
 	case "v3":
 		return map[string]any{
 			"locator":        s.Locator,

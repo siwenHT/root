@@ -18,7 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/arb"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -161,6 +163,78 @@ func candidateExecutionGas(res *CandidateResult) uint64 {
 	return 0
 }
 
+// logCandidateExecutionFailure emits the bounded, structured evidence needed to
+// distinguish a genuine contract revert from an invalid candidate or an
+// infrastructure failure. It deliberately stays in the adapter log rather than
+// the frozen RPC schema: callers can continue to validate additionalProperties:false
+// responses while operators still get selector/data/phase diagnostics.
+func logCandidateExecutionFailure(args SimulateCandidateArgs, ours CandidateEnvelope, targetHash common.Hash, prefixLen int, res *CandidateResult) {
+	if res == nil {
+		return
+	}
+	revision := args.ExecutorRevision
+	if revision == "" {
+		if r, ok := executorRevisionForData(ours.Data); ok {
+			revision = r
+		}
+	}
+	executor := args.Executor
+	if executor == "" {
+		executor = addressHex(ours.To)
+	}
+	base := []any{
+		"request_id", args.RequestID,
+		"parent_handle", args.ParentHandle,
+		"target_hash", targetHash.Hex(),
+		"prefix_len", prefixLen,
+		"executor", executor,
+		"candidate_to", addressHex(ours.To),
+		"candidate_calldata_digest", crypto.Keccak256Hash(ours.Data).Hex(),
+		"executor_revision", revision,
+	}
+	logOne := func(phase string, out PrefixTxOutcome) {
+		if out.Class.Status == arb.StatusSuccess {
+			return
+		}
+		selector := "0x"
+		if len(out.RevertData) >= 4 {
+			selector = hexutil.Encode(out.RevertData[:4])
+		}
+		ctx := append(append([]any{}, base...),
+			"phase", phase,
+			"status", out.Class.Status.String(),
+			"revert_selector", selector,
+			"revert_data_len", out.RevertDataLen,
+			"revert_data", hexutil.Encode(out.RevertData),
+			"revert_data_truncated", out.RevertDataLen > len(out.RevertData),
+			"gas_used", out.UsedGas,
+		)
+		// Reverts are rare and actionable, so keep them at the normal operator
+		// level. Invalid/infra outcomes can be high-volume and remain debug-level.
+		if out.Class.Status == arb.StatusReverted {
+			log.Info("arb candidate execution failure", ctx...)
+		} else {
+			log.Debug("arb candidate execution failure", ctx...)
+		}
+	}
+	if !res.PrefixCompleted {
+		if n := len(res.PrefixOutcomes); n > 0 {
+			logOne("prefix", res.PrefixOutcomes[n-1])
+		}
+		return
+	}
+	if res.Candidate != nil {
+		logOne("candidate", *res.Candidate)
+	}
+}
+
+func addressHex(addr *common.Address) string {
+	if addr == nil {
+		return ""
+	}
+	return addr.Hex()
+}
+
 // measureRetention fills out.RetainedT0/RetainedT2 with the §391 base-token balance of
 // the beneficiary at the two isolated boundaries. Called ONLY on a successful candidate
 // with a caller-named subject. It reads on private Copies of the T0/T2 states via the
@@ -286,6 +360,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		if xerr != nil {
 			return &arb.JobOutcome{Kind: "candidate", ErrCode: xerr.Error()}, false
 		}
+		logCandidateExecutionFailure(args, env, targetHash, len(prefix), res)
 		out := api.mapCandidateOutcome(args.ParentHandle, ident, res, budget)
 		// §391 retention: measure ONLY when the caller named a subject AND the candidate
 		// actually succeeded (out.Complete). T0 reads the isolated post-prefix snapshot,
@@ -307,7 +382,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		return out, out.Complete
 	}
 
-	jobID, err := api.submitAndEnqueue(args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	jobID, err := api.submitAndEnqueue(arb.NamespaceSimulateCandidate, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}
@@ -527,10 +602,20 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 				for _, t := range s.InitializedTicks {
 					ticks = append(ticks, arb.InfinityTick{Index: strconv.FormatInt(int64(t.Index), 10), LiquidityGross: t.LiquidityGross.String(), LiquidityNet: t.LiquidityNet.String()})
 				}
+				feeNum, feeDen := "", ""
+				if s.EffectiveFeeResolved {
+					feeNum = strconv.FormatUint(uint64(s.EffectiveFeeNum), 10)
+					feeDen = strconv.FormatUint(uint64(s.EffectiveFeeDen), 10)
+				} else {
+					// A dynamic PoolKey's slot0.lpFee is not an amount-specific
+					// quote. Keep the pair absent on the wire and leave an explicit
+					// diagnostic in the node log instead of emitting "0".
+					log.Debug("arb infinity effective fee unresolved", "manager", s.Manager.Hex(), "pool", s.PoolKey.Hex(), "status", s.EffectiveFeeStatus)
+				}
 				snaps = append(snaps, arb.PoolSnapshot{Locator: pr.Locator, Kind: "infinity_cl", Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
 					SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String(), BitmapWords: words,
 					InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),
-					EffectiveFeeNum: strconv.FormatUint(uint64(s.EffectiveFeeNum), 10), EffectiveFeeDen: strconv.FormatUint(uint64(s.EffectiveFeeDen), 10)})
+					EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus})
 			case "v3":
 				s, rerr := caller.ReadV3Head(pool)
 				if rerr != nil {
@@ -566,7 +651,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		}, true
 	}
 
-	jobID, err := api.submitAndEnqueue(args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	jobID, err := api.submitAndEnqueue(arb.NamespaceGetPostPoolState, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}

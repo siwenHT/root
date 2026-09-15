@@ -44,7 +44,7 @@ func newTestRegistry(t *testing.T) (*JobRegistry, *fixedClock) {
 
 func TestSubmitMintsQueuedJob(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, status, existing, err := r.Submit(dig1, stamp1, dig1)
+	jid, status, existing, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	if err != nil {
 		t.Fatalf("Submit: %v", err)
 	}
@@ -61,8 +61,8 @@ func TestSubmitMintsQueuedJob(t *testing.T) {
 
 func TestIdempotentResubmitSameDigestReturnsExisting(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid1, _, _, _ := r.Submit(dig1, stamp1, dig1)
-	jid2, status, existing, err := r.Submit(dig1, stamp1, dig1)
+	jid1, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
+	jid2, status, existing, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	if err != nil {
 		t.Fatalf("resubmit: %v", err)
 	}
@@ -82,16 +82,62 @@ func TestIdempotentResubmitSameDigestReturnsExisting(t *testing.T) {
 
 func TestIdempotencyConflictOnDifferentDigest(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	r.Submit(dig1, stamp1, dig1)
-	_, _, _, err := r.Submit(dig1, stamp1, dig2) // same request_id, different digest
+	r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
+	_, _, _, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig2) // same request_id, different digest
 	if err != ErrIdempotencyConflict {
 		t.Fatalf("err=%v want ErrIdempotencyConflict", err)
 	}
 }
 
+func TestSameRequestIDAcrossMethodsUsesIndependentJobs(t *testing.T) {
+	r, _ := newTestRegistry(t)
+	targetID, _, existing, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
+	if err != nil || existing {
+		t.Fatalf("target submit=(%q,%v,%v)", targetID, existing, err)
+	}
+	postID, _, existing, err := r.Submit(NamespaceGetPostPoolState, dig1, stamp1, dig1)
+	if err != nil || existing {
+		t.Fatalf("post submit=(%q,%v,%v)", postID, existing, err)
+	}
+	if targetID == postID {
+		t.Fatalf("different method namespaces shared job_id %q", targetID)
+	}
+	if r.Len() != 2 {
+		t.Fatalf("cross-method submits must track two jobs; Len=%d", r.Len())
+	}
+	if _, _, existing, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1); err != nil || !existing {
+		t.Fatalf("target idempotent retry=(%v,%v)", existing, err)
+	}
+	if _, _, existing, err := r.Submit(NamespaceGetPostPoolState, dig1, stamp1, dig1); err != nil || !existing {
+		t.Fatalf("post idempotent retry=(%v,%v)", existing, err)
+	}
+}
+
+func TestEvictionRemovesEachMethodScopedRequestKey(t *testing.T) {
+	r, clk := newTestRegistry(t)
+	targetID, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
+	postID, _, _, _ := r.Submit(NamespaceGetPostPoolState, dig1, stamp1, dig1)
+	r.Start(targetID)
+	r.Start(postID)
+	r.Complete(targetID, true, &JobOutcome{Kind: "target"})
+	r.Complete(postID, true, &JobOutcome{Kind: "post_pool"})
+	clk.now = clk.now.Add(11 * time.Second)
+	if n := r.Sweep(); n != 2 {
+		t.Fatalf("Sweep evicted %d jobs; want 2", n)
+	}
+	if r.Len() != 0 {
+		t.Fatalf("method-scoped keys survived eviction; Len=%d", r.Len())
+	}
+	for _, ns := range []JobNamespace{NamespaceSimulateTarget, NamespaceGetPostPoolState} {
+		if _, _, existing, err := r.Submit(ns, dig1, stamp1, dig1); err != nil || existing {
+			t.Fatalf("namespace %q not reusable after eviction: existing=%v err=%v", ns, existing, err)
+		}
+	}
+}
+
 func TestStartRejectsNonQueued(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	if err := r.Start(jid); err != nil {
 		t.Fatalf("first Start: %v", err)
 	}
@@ -102,7 +148,7 @@ func TestStartRejectsNonQueued(t *testing.T) {
 
 func TestCompleteSuccessFreezesOutcome(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid)
 	out := &JobOutcome{Kind: "target", Complete: true, PostHandle: dig2, Metering: Metering{GasUsed: 21000}}
 	if err := r.Complete(jid, true, out); err != nil {
@@ -125,7 +171,7 @@ func TestCompleteSuccessFreezesOutcome(t *testing.T) {
 
 func TestCompleteRejectsNonRunning(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	// still Queued
 	if err := r.Complete(jid, true, &JobOutcome{}); err != ErrJobNotRunning {
 		t.Fatalf("Complete on Queued err=%v want ErrJobNotRunning", err)
@@ -136,7 +182,7 @@ func TestCompleteRejectsNonRunning(t *testing.T) {
 // worker's later Complete must NOT produce success evidence, it becomes Cancelled.
 func TestCancelWhileRunningDiscardsSuccessEvidence(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid)
 	req, err := r.RequestCancel(jid, boot)
 	if err != nil || !req {
@@ -162,7 +208,7 @@ func TestCancelWhileRunningDiscardsSuccessEvidence(t *testing.T) {
 
 func TestCancelQueuedGoesStraightToCancelled(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	req, err := r.RequestCancel(jid, boot)
 	if err != nil || !req {
 		t.Fatalf("RequestCancel (%v,%v)", req, err)
@@ -179,7 +225,7 @@ func TestCancelQueuedGoesStraightToCancelled(t *testing.T) {
 
 func TestCancelTerminalIsNoop(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid)
 	r.Complete(jid, true, &JobOutcome{Kind: "target"})
 	req, err := r.RequestCancel(jid, boot)
@@ -197,7 +243,7 @@ func TestCancelTerminalIsNoop(t *testing.T) {
 
 func TestCancelIsIdempotent(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid)
 	r.RequestCancel(jid, boot)
 	req, err := r.RequestCancel(jid, boot) // second cancel while CancelRequested
@@ -208,7 +254,7 @@ func TestCancelIsIdempotent(t *testing.T) {
 
 func TestBootMismatchRejectedOnGetAndCancel(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	wrongBoot := hex32('f')
 	if _, err := r.Get(jid, wrongBoot); err != ErrBootMismatch {
 		t.Fatalf("Get wrong boot err=%v want ErrBootMismatch", err)
@@ -220,7 +266,7 @@ func TestBootMismatchRejectedOnGetAndCancel(t *testing.T) {
 
 func TestResultTTLEvictionYieldsJobNotFound(t *testing.T) {
 	r, clk := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid)
 	r.Complete(jid, true, &JobOutcome{Kind: "target"})
 	// Before TTL: retrievable.
@@ -238,7 +284,7 @@ func TestResultTTLEvictionYieldsJobNotFound(t *testing.T) {
 
 func TestNonTerminalJobNotEvictedByResultTTL(t *testing.T) {
 	r, clk := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid) // Running, not terminal
 	clk.now = clk.now.Add(time.Hour)
 	if n := r.Sweep(); n != 0 {
@@ -251,14 +297,14 @@ func TestNonTerminalJobNotEvictedByResultTTL(t *testing.T) {
 
 func TestEvictionFreesRequestIDForReuse(t *testing.T) {
 	r, clk := newTestRegistry(t)
-	jid1, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid1, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	r.Start(jid1)
 	r.Complete(jid1, true, &JobOutcome{Kind: "target"})
 	clk.now = clk.now.Add(11 * time.Second)
 	r.Sweep()
 	// After eviction, the same request_id is a brand-new job (not a conflict, not
 	// a resurrected result).
-	jid2, _, existing, err := r.Submit(dig1, stamp1, dig1)
+	jid2, _, existing, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	if err != nil {
 		t.Fatalf("resubmit after eviction: %v", err)
 	}
@@ -273,20 +319,20 @@ func TestEvictionFreesRequestIDForReuse(t *testing.T) {
 func TestMalformedInputsRejected(t *testing.T) {
 	r, _ := newTestRegistry(t)
 	bad := "0xNOTHEX"
-	if _, _, _, err := r.Submit(bad, stamp1, dig1); err != ErrBadRequestID {
+	if _, _, _, err := r.Submit(NamespaceSimulateTarget, bad, stamp1, dig1); err != ErrBadRequestID {
 		t.Fatalf("bad request_id err=%v", err)
 	}
-	if _, _, _, err := r.Submit(dig1, bad, dig1); err != ErrBadStamp {
+	if _, _, _, err := r.Submit(NamespaceSimulateTarget, dig1, bad, dig1); err != ErrBadStamp {
 		t.Fatalf("bad stamp err=%v", err)
 	}
-	if _, _, _, err := r.Submit(dig1, stamp1, bad); err != ErrBadDigest {
+	if _, _, _, err := r.Submit(NamespaceSimulateTarget, dig1, stamp1, bad); err != ErrBadDigest {
 		t.Fatalf("bad digest err=%v", err)
 	}
 }
 
 func TestRejectQueuedIsFailedNotCancelled(t *testing.T) {
 	r, _ := newTestRegistry(t)
-	jid, _, _, _ := r.Submit(dig1, stamp1, dig1)
+	jid, _, _, _ := r.Submit(NamespaceSimulateTarget, dig1, stamp1, dig1)
 	if err := r.Reject(jid, "queue_full"); err != nil {
 		t.Fatalf("Reject: %v", err)
 	}

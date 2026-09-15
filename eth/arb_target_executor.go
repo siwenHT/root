@@ -48,7 +48,14 @@ type PrefixTxOutcome struct {
 	Class   arb.Classification
 	Receipt *types.Receipt // trustworthy only when Class.ReceiptTrusted
 	UsedGas uint64         // this tx alone (receipt.GasUsed), trustworthy same condition
+	// RevertData is a bounded copy of the top-level EVM REVERT payload. It is
+	// diagnostic-only and never enters the wire result. RevertDataLen preserves
+	// the original payload length so truncation is explicit in logs.
+	RevertData    []byte
+	RevertDataLen int
 }
+
+const maxDiagnosticRevertData = 256
 
 // PrefixResult is the outcome of executing an ordered signed prefix on one isolated
 // state (e.g. the backrun bundle [target, ours], design §357). Execution stops at the
@@ -289,14 +296,15 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 	// Per-tx context (§8.2): establish txHash/index before applying.
 	s.work.SetTxContext(tx.Hash(), index)
 
-	receipt, applyErr := core.ApplyTransactionWithEVM(
+	receipt, execution, applyErr := core.ApplyTransactionWithEVMResult(
 		msg, s.gp, s.work, s.num, common.Hash{}, s.header.Time, tx, &s.usedGas, s.evm,
 	)
 
 	sig := s.x.collectSignals(s.budget, s.evm, s.work, receipt, applyErr)
 	class := arb.Classify(sig)
 
-	out := PrefixTxOutcome{Class: class}
+	revertData, revertLen := boundedRevertData(execution)
+	out := PrefixTxOutcome{Class: class, RevertData: revertData, RevertDataLen: revertLen}
 	if class.ReceiptTrusted {
 
 		// Native receipt derivation fills this outside ApplyTransactionWithEVM.
@@ -306,6 +314,21 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 		out.UsedGas = receipt.GasUsed
 	}
 	return out
+}
+
+// boundedRevertData extracts only a top-level REVERT payload and caps the copy
+// used for diagnostics. Core validity errors and out-of-gas results do not carry
+// a contract revert payload, so they intentionally return an empty value.
+func boundedRevertData(result *core.ExecutionResult) ([]byte, int) {
+	if result == nil || !errors.Is(result.Err, vm.ErrExecutionReverted) || len(result.ReturnData) == 0 {
+		return nil, 0
+	}
+	fullLen := len(result.ReturnData)
+	data := result.ReturnData
+	if len(data) > maxDiagnosticRevertData {
+		data = data[:maxDiagnosticRevertData]
+	}
+	return append([]byte(nil), data...), fullLen
 }
 
 // ExecuteTarget runs one signed target tx on a fresh isolated copy of the base,

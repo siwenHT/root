@@ -198,8 +198,18 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment similar to ApplyTransaction. However,
 // this method takes an already created EVM instance as input.
 func ApplyTransactionWithEVM(msg *Message, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, blockTime uint64, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (receipt *types.Receipt, err error) {
+	receipt, _, err = ApplyTransactionWithEVMResult(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, usedGas, evm, receiptProcessors...)
+	return receipt, err
+}
+
+// ApplyTransactionWithEVMResult is ApplyTransactionWithEVM with the underlying
+// EVM execution result returned to callers that need bounded diagnostics (for
+// example, a candidate simulator inspecting top-level revert data). The receipt
+// and state-transition semantics are identical to ApplyTransactionWithEVM; the
+// existing function above remains the compatibility wrapper used by the block
+// processor and public callers.
+func ApplyTransactionWithEVMResult(msg *Message, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, blockTime uint64, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (receipt *types.Receipt, result *ExecutionResult, err error) {
 	// Add timing measurement
-	var result *ExecutionResult
 	if tx.Gas() > largeTxGasLimit {
 		start := time.Now()
 		defer func() {
@@ -221,7 +231,7 @@ func ApplyTransactionWithEVM(msg *Message, gp *GasPool, statedb *state.StateDB, 
 	// Apply the transaction to the current state (included in the env).
 	result, err = ApplyMessage(evm, msg, gp)
 	if err != nil {
-		return nil, err
+		return nil, result, err
 	}
 	// Update the state with pending changes.
 	var root []byte
@@ -238,7 +248,7 @@ func ApplyTransactionWithEVM(msg *Message, gp *GasPool, statedb *state.StateDB, 
 		statedb.AccessEvents().Merge(evm.AccessEvents)
 	}
 
-	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, blockTime, tx, *usedGas, root, receiptProcessors...), nil
+	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, blockTime, tx, *usedGas, root, receiptProcessors...), result, nil
 }
 
 // MakeReceipt generates the receipt object for a transaction given its execution result.

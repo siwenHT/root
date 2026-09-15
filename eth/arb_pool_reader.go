@@ -181,19 +181,70 @@ type InfinityTickSnapshot struct {
 	LiquidityNet   *big.Int
 }
 
+// Infinity PoolKey fees use the exact dynamic marker below.  A dynamic pool's
+// slot0.lpFee is only the manager's last stored/default value; the hook may
+// override it for each amount and direction in beforeSwap.  It is therefore
+// never a quoteable effective fee by itself.
+const (
+	infinityDynamicFeeFlag uint32 = 0x800000
+	infinityMaxLPFee       uint32 = 1_000_000
+	infinityFeeDen         uint32 = 1_000_000
+)
+
+// InfinityFeeResolution records why an effective fee is (or is not) usable.
+// The status is intentionally kept separate from the numeric pair so callers
+// cannot mistake zero values for a resolved zero-fee quote.
+type InfinityFeeResolution struct {
+	Num      uint32
+	Den      uint32
+	Resolved bool
+	Status   string
+}
+
+func unresolvedInfinityFee(status string) InfinityFeeResolution {
+	return InfinityFeeResolution{Status: status}
+}
+
+// resolveInfinityFee is the only path that may populate a quoteable fee.  It
+// requires PoolKey metadata and an internally consistent slot value.  A future
+// hook-aware probe can construct a resolved value explicitly; this snapshot
+// reader deliberately does not infer one from storage.
+func resolveInfinityFee(key *arb.InfinityPoolKey, slot *arb.InfinitySlot0) InfinityFeeResolution {
+	if key == nil {
+		return unresolvedInfinityFee("pool_key_unavailable")
+	}
+	if key.Fee == infinityDynamicFeeFlag {
+		return unresolvedInfinityFee("dynamic_hook_required")
+	}
+	if key.Fee > infinityMaxLPFee {
+		return unresolvedInfinityFee("pool_key_fee_out_of_range")
+	}
+	if slot == nil || slot.LPFee != key.Fee {
+		return unresolvedInfinityFee("stored_fee_mismatch")
+	}
+	return InfinityFeeResolution{
+		Num:      key.Fee,
+		Den:      infinityFeeDen,
+		Resolved: true,
+		Status:   "static_pool_key",
+	}
+}
+
 type InfinitySnapshot struct {
-	Manager          common.Address
-	PoolKey          common.Hash
-	Hook             common.Address
-	SqrtPriceX96     *big.Int
-	Tick             int32
-	Liquidity        *big.Int
-	BitmapWords      []InfinityBitmapWord
-	InitializedTicks []InfinityTickSnapshot
-	CoverageMinTick  int32
-	CoverageMaxTick  int32
-	EffectiveFeeNum  uint32
-	EffectiveFeeDen  uint32
+	Manager              common.Address
+	PoolKey              common.Hash
+	Hook                 common.Address
+	SqrtPriceX96         *big.Int
+	Tick                 int32
+	Liquidity            *big.Int
+	BitmapWords          []InfinityBitmapWord
+	InitializedTicks     []InfinityTickSnapshot
+	CoverageMinTick      int32
+	CoverageMaxTick      int32
+	EffectiveFeeNum      uint32
+	EffectiveFeeDen      uint32
+	EffectiveFeeResolved bool
+	EffectiveFeeStatus   string
 }
 
 func floorDiv(a, b int64) int64 {
@@ -308,9 +359,13 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
 		}
 	}
+	// The legacy extsload layout does not expose a verified PoolKey fee.  Do not
+	// use slot.lpFee here: for a dynamic pool it is only a hook-controlled
+	// default, and for an unknown layout it cannot establish static identity.
+	fee := unresolvedInfinityFee("pool_key_unavailable")
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: hook, SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick,
 		Liquidity: liq, BitmapWords: words, InitializedTicks: ticks, CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick),
-		EffectiveFeeNum: slot.LPFee, EffectiveFeeDen: 1_000_000}, nil
+		EffectiveFeeNum: fee.Num, EffectiveFeeDen: fee.Den, EffectiveFeeResolved: fee.Resolved, EffectiveFeeStatus: fee.Status}, nil
 }
 
 // ReadInfinityCL reads a Pancake Infinity CL singleton through the manager's
@@ -413,9 +468,11 @@ func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, 
 	if minTick > maxTick {
 		minTick, maxTick = int64(slot.Tick), int64(slot.Tick)
 	}
+	fee := resolveInfinityFee(key, slot)
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: common.BytesToAddress(key.Hooks[:]),
 		SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick, Liquidity: liq, BitmapWords: words, InitializedTicks: ticks,
-		CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick), EffectiveFeeNum: slot.LPFee, EffectiveFeeDen: 1_000_000}, nil
+		CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick), EffectiveFeeNum: fee.Num, EffectiveFeeDen: fee.Den,
+		EffectiveFeeResolved: fee.Resolved, EffectiveFeeStatus: fee.Status}, nil
 }
 
 // ReadV3Head reads slot0() and liquidity() on the pool.
