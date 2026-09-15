@@ -1,8 +1,9 @@
 // The five async simulate methods (arb_simulateTarget / simulateStateRaw / simulateCandidate /
 // simulateSignedBundle / getPostPoolState). Each validates wire shape, decodes the
 // raw tx(s) and env, computes a request_digest (the content-addressed idempotency
-// key — same request_id + same digest returns the existing job; a different digest
-// is a conflict), submits to the registry, and — for a fresh job — builds the
+// key within that method's namespace — same method + request_id + digest returns
+// the existing job; a different digest is a conflict), submits to the registry,
+// and — for a fresh job — builds the
 // executor closure and enqueues it. Every method returns only {job_id}; the result
 // is read later via arb_getJob (design §293 async submit contract).
 //
@@ -148,10 +149,11 @@ func (api *ArbAPI) commonSimValidate(requestID, stamp, parentHandle string, budg
 	}, nil
 }
 
-// submitAndEnqueue computes the request digest, submits to the registry (idempotent
-// on request_id), and enqueues a fresh job's closure. Returns the job id.
-func (api *ArbAPI) submitAndEnqueue(requestID, stamp, digest string, maxWallUs uint64, run func(budget *arb.ReadBudget) (*arb.JobOutcome, bool)) (string, error) {
-	jobID, _, existing, err := api.svc.jobs.Submit(requestID, stamp, digest)
+// submitAndEnqueue submits to the method-scoped registry idempotency domain and
+// enqueues a fresh job's closure. The namespace is internal; it is not added to
+// the RPC wire shape or to HandleIdentity.
+func (api *ArbAPI) submitAndEnqueue(namespace arb.JobNamespace, requestID, stamp, digest string, maxWallUs uint64, run func(budget *arb.ReadBudget) (*arb.JobOutcome, bool)) (string, error) {
+	jobID, _, existing, err := api.svc.jobs.Submit(namespace, requestID, stamp, digest)
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +203,7 @@ func (api *ArbAPI) SimulateTarget(args SimulateTargetArgs) (*JobIDResult, error)
 		return api.mapTargetOutcome(args.ParentHandle, ident, res, budget), res.Class.Status == arb.StatusSuccess
 	}
 
-	jobID, err := api.submitAndEnqueue(args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	jobID, err := api.submitAndEnqueue(arb.NamespaceSimulateTarget, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +282,7 @@ func (api *ArbAPI) SimulateStateRaw(args SimulateStateRawArgs) (*JobIDResult, er
 		out.ExecutorPayload = ledger
 		return out, true
 	}
-	id, err := api.submitAndEnqueue(args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	id, err := api.submitAndEnqueue(arb.NamespaceSimulateStateRaw, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +363,7 @@ func (api *ArbAPI) SimulateSignedBundle(args SimulateSignedBundleArgs) (*JobIDRe
 		out.ExecutorPayload = payload
 		return out, true
 	}
-	id, err := api.submitAndEnqueue(args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	id, err := api.submitAndEnqueue(arb.NamespaceSimulateSignedBundle, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}

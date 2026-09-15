@@ -12,8 +12,8 @@
 //
 // Wire contract (protocol/v1/wire.schema.json, authoritative):
 //   - The four simulate methods take a client request_id (id32) and return a
-//     server-generated job_id (result_fields:["job_id"]). request_id is the
-//     idempotency key; the server owns job_id.
+//     server-generated job_id (result_fields:["job_id"]). The idempotency key is
+//     (method namespace, request_id); the server owns job_id.
 //   - arb_getJob(job_id, boot) reports status ∈ Queued/Running/Succeeded/Failed/
 //     Cancelled plus stamp/request_digest/result_kind/metering/completeness. An
 //     evicted/unknown job is JobNotFound — the client must NOT treat unknown as
@@ -97,6 +97,19 @@ func (s JobStatus) IsTerminal() bool {
 	return s == JobSucceeded || s == JobFailed || s == JobCancelled
 }
 
+// JobNamespace separates idempotency domains for the asynchronous RPC methods.
+// The wire request_id remains unchanged: a client may reuse the same id across
+// methods while each method still gets its own job and digest check.
+type JobNamespace string
+
+const (
+	NamespaceSimulateTarget       JobNamespace = "arb_simulateTarget"
+	NamespaceSimulateStateRaw     JobNamespace = "arb_simulateStateRaw"
+	NamespaceSimulateCandidate    JobNamespace = "arb_simulateCandidate"
+	NamespaceSimulateSignedBundle JobNamespace = "arb_simulateSignedBundle"
+	NamespaceGetPostPoolState     JobNamespace = "arb_getPostPoolState"
+)
+
 // Metering is the wire-reportable resource accounting for a finished job. The
 // adapter fills it from the executor / read budget; the pure layer only stores
 // and echoes it.
@@ -164,8 +177,15 @@ type PoolSnapshot struct {
 	InitializedTicks []InfinityTick
 	CoverageMinTick  string
 	CoverageMaxTick  string
-	EffectiveFeeNum  string
-	EffectiveFeeDen  string
+	// EffectiveFeeNum/Den are populated only when the node has an explicit,
+	// internally verified fee resolution.  Empty strings mean unresolved; in
+	// particular, they must not be serialized as a zero-fee quote.  These two
+	// fields are kept internal to the node adapter and are omitted from the wire
+	// object when EffectiveFeeResolved is false.
+	EffectiveFeeNum      string
+	EffectiveFeeDen      string
+	EffectiveFeeResolved bool   `json:"-"`
+	EffectiveFeeStatus   string `json:"-"`
 }
 
 type InfinityBitmapWord struct {
@@ -192,6 +212,7 @@ type JobView struct {
 
 type jobEntry struct {
 	jobID      string
+	namespace  JobNamespace
 	requestID  string
 	stamp      string
 	digest     string
@@ -234,8 +255,13 @@ type JobRegistry struct {
 	clock     Clock
 	newID     func() string
 	resultTTL time.Duration
-	entries   map[string]*jobEntry // key = job_id
-	byRequest map[string]string    // request_id -> job_id (idempotency index)
+	entries   map[string]*jobEntry  // key = job_id
+	byRequest map[requestKey]string // (method, request_id) -> job_id
+}
+
+type requestKey struct {
+	namespace JobNamespace
+	requestID string
 }
 
 // NewJobRegistry builds a registry bound to one node boot. clock is monotonic and
@@ -252,7 +278,7 @@ func NewJobRegistry(boot string, clock Clock, newID func() string, resultTTL tim
 		newID:     newID,
 		resultTTL: resultTTL,
 		entries:   make(map[string]*jobEntry),
-		byRequest: make(map[string]string),
+		byRequest: make(map[requestKey]string),
 	}, nil
 }
 
@@ -261,16 +287,16 @@ func (r *JobRegistry) Boot() string { return r.boot }
 
 // Submit registers a simulate request and returns its server-generated job_id.
 //
-// Idempotency (§295): the key is request_id. A resubmit of the same request_id
-// with the same request_digest returns the existing job_id and its current status
-// (no new worker, existing=true). A resubmit with a DIFFERENT digest is an
-// ErrIdempotencyConflict — the two requests disagree on content. A brand-new
-// request_id mints a fresh Queued job.
+// Idempotency (§295): the key is (method namespace, request_id). A resubmit of
+// the same method and request_id with the same request_digest returns the
+// existing job_id and its current status (no new worker, existing=true). A
+// resubmit with a DIFFERENT digest is an ErrIdempotencyConflict. The same
+// request_id used by another asynchronous method is an independent job domain.
 //
 // stamp and digest are the env/config stamp (hash32) and the request digest
 // (hash32) computed by the adapter from the full request; they are echoed back
 // via getJob and (digest) used for the idempotency comparison.
-func (r *JobRegistry) Submit(requestID, stamp, digest string) (jobID string, status JobStatus, existing bool, err error) {
+func (r *JobRegistry) Submit(namespace JobNamespace, requestID, stamp, digest string) (jobID string, status JobStatus, existing bool, err error) {
 	if !isID32(requestID) {
 		return "", 0, false, ErrBadRequestID
 	}
@@ -284,7 +310,8 @@ func (r *JobRegistry) Submit(requestID, stamp, digest string) (jobID string, sta
 	defer r.mu.Unlock()
 	r.evictExpiredLocked()
 
-	if jid, ok := r.byRequest[requestID]; ok {
+	key := requestKey{namespace: namespace, requestID: requestID}
+	if jid, ok := r.byRequest[key]; ok {
 		e := r.entries[jid]
 		// e is guaranteed present while byRequest points at it (eviction removes
 		// both together).
@@ -297,12 +324,13 @@ func (r *JobRegistry) Submit(requestID, stamp, digest string) (jobID string, sta
 	jid := r.newID()
 	r.entries[jid] = &jobEntry{
 		jobID:     jid,
+		namespace: namespace,
 		requestID: requestID,
 		stamp:     stamp,
 		digest:    digest,
 		status:    JobQueued,
 	}
-	r.byRequest[requestID] = jid
+	r.byRequest[key] = jid
 	return jid, JobQueued, false, nil
 }
 
@@ -472,7 +500,7 @@ func (r *JobRegistry) evictExpiredLocked() int {
 	for jid, e := range r.entries {
 		if e.status.IsTerminal() && now.Sub(e.terminalAt) > r.resultTTL {
 			delete(r.entries, jid)
-			delete(r.byRequest, e.requestID)
+			delete(r.byRequest, requestKey{namespace: e.namespace, requestID: e.requestID})
 			n++
 		}
 	}

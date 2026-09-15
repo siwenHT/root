@@ -158,3 +158,42 @@ func TestReadV2BudgetTripSurfacesError(t *testing.T) {
 		t.Fatalf("want budget tripped error, got %v", err)
 	}
 }
+
+func TestResolveInfinityFeeRejectsDynamicStorageValue(t *testing.T) {
+	key := &arb.InfinityPoolKey{Fee: infinityDynamicFeeFlag}
+	slot := &arb.InfinitySlot0{LPFee: 233}
+	got := resolveInfinityFee(key, slot)
+	if got.Resolved || got.Num != 0 || got.Den != 0 || got.Status != "dynamic_hook_required" {
+		t.Fatalf("dynamic fee must remain unresolved, got %+v", got)
+	}
+}
+
+func TestResolveInfinityFeeAcceptsConsistentStaticKey(t *testing.T) {
+	key := &arb.InfinityPoolKey{Fee: 2500}
+	slot := &arb.InfinitySlot0{LPFee: 2500}
+	got := resolveInfinityFee(key, slot)
+	if !got.Resolved || got.Num != 2500 || got.Den != infinityFeeDen || got.Status != "static_pool_key" {
+		t.Fatalf("static fee should resolve, got %+v", got)
+	}
+}
+
+func TestResolveInfinityFeeRejectsUnknownOrMismatchedMetadata(t *testing.T) {
+	cases := []struct {
+		name string
+		key  *arb.InfinityPoolKey
+		slot *arb.InfinitySlot0
+		want string
+	}{
+		{name: "missing key", key: nil, slot: &arb.InfinitySlot0{LPFee: 1}, want: "pool_key_unavailable"},
+		{name: "out of range", key: &arb.InfinityPoolKey{Fee: infinityMaxLPFee + 1}, slot: &arb.InfinitySlot0{LPFee: infinityMaxLPFee + 1}, want: "pool_key_fee_out_of_range"},
+		{name: "slot mismatch", key: &arb.InfinityPoolKey{Fee: 100}, slot: &arb.InfinitySlot0{LPFee: 101}, want: "stored_fee_mismatch"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveInfinityFee(tc.key, tc.slot)
+			if got.Resolved || got.Num != 0 || got.Den != 0 || got.Status != tc.want {
+				t.Fatalf("want unresolved %q, got %+v", tc.want, got)
+			}
+		})
+	}
+}
