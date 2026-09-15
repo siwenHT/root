@@ -32,7 +32,7 @@ func TestChargeReadUpToCapThenFails(t *testing.T) {
 func TestExceededIsStickyNoFakeSuccess(t *testing.T) {
 	clk := &fixedClock{now: time.Unix(1000, 0)}
 	b := NewReadBudget(clk.Clock(), 1, 0)
-	b.ChargeRead(ReadStorage)              // ok, at cap
+	b.ChargeRead(ReadStorage) // ok, at cap
 	if b.ChargeRead(ReadBalance) != ErrReadBudgetExceeded {
 		t.Fatal("second read should exceed")
 	}

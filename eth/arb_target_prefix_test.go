@@ -85,6 +85,10 @@ func TestExecutePrefixBothSucceed(t *testing.T) {
 		t.Fatalf("want 2 outcomes, got %d", len(res.Outcomes))
 	}
 	for i, o := range res.Outcomes {
+
+		if o.Receipt == nil || o.Receipt.CumulativeGasUsed != uint64(i+1)*params.TxGas {
+			t.Fatalf("tx %d: cumulative gas must include preceding raw transactions", i)
+		}
 		if o.Class.Status != arb.StatusSuccess {
 			t.Fatalf("tx %d: want success, got %s", i, o.Class.Status)
 		}

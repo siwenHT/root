@@ -59,16 +59,16 @@ func TestApplyMessageThroughBudgetedWrapper(t *testing.T) {
 	wrapped.SetCancel(evm.Cancel)
 
 	msg := &core.Message{
-		To:                &contract,
-		From:              sender,
-		Nonce:             0,
-		Value:             big.NewInt(0),
-		GasLimit:          100_000,
-		GasPrice:          big.NewInt(0),
-		GasFeeCap:         big.NewInt(0),
-		GasTipCap:         big.NewInt(0),
-		Data:              nil,
-		SkipNonceChecks:   false,
+		To:                    &contract,
+		From:                  sender,
+		Nonce:                 0,
+		Value:                 big.NewInt(0),
+		GasLimit:              100_000,
+		GasPrice:              big.NewInt(0),
+		GasFeeCap:             big.NewInt(0),
+		GasTipCap:             big.NewInt(0),
+		Data:                  nil,
+		SkipNonceChecks:       false,
 		SkipTransactionChecks: false,
 	}
 	gp := new(core.GasPool).AddGas(30_000_000)

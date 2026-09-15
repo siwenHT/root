@@ -75,8 +75,8 @@ func (s ExecStatus) String() string {
 type ExecSignals struct {
 	// Budget/cancel signals (checked FIRST). The adapter derives these from the
 	// ReadBudget latch and evm.Cancelled().
-	DeadlineExceeded  bool // wall-clock budget elapsed -> cancelled
-	ControlCancelled  bool // explicit control cancel -> cancelled
+	DeadlineExceeded    bool // wall-clock budget elapsed -> cancelled
+	ControlCancelled    bool // explicit control cancel -> cancelled
 	ReadBudgetExhausted bool // max_state_reads cap hit -> failed (resource)
 
 	// Infrastructure/state signals.
@@ -86,7 +86,7 @@ type ExecSignals struct {
 	// Application signals (only meaningful if none of the above fired).
 	CoreError bool // ApplyMessage/ApplyTransactionWithEVM returned a core error
 	//             (nonce/balance/fee/intrinsic/type) -> invalid
-	Applied      bool // the tx was applied and a receipt was produced
+	Applied       bool // the tx was applied and a receipt was produced
 	ReceiptFailed bool // receipt.Status == failed (revert/OOG) -> reverted
 }
 

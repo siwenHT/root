@@ -15,6 +15,8 @@ package arb
 import (
 	"errors"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Well-known function selectors, keccak256(sig)[:4]. Verified in tests.
@@ -30,8 +32,21 @@ var (
 	// token0() -> address
 	SelToken0 = [4]byte{0x0d, 0xfe, 0x16, 0x81}
 	// token1() -> address
-	SelToken1 = [4]byte{0xd2, 0x12, 0x20, 0xa7}
+	SelToken1               = [4]byte{0xd2, 0x12, 0x20, 0xa7}
+	SelInfinityGetSlot0     = infinitySelector("getSlot0(bytes32)")
+	SelInfinityGetLiquidity = infinitySelector("getLiquidity(bytes32)")
+	SelInfinityGetBitmap    = infinitySelector("getPoolBitmapInfo(bytes32,int16)")
+	SelInfinityGetTick      = infinitySelector("getPoolTickInfo(bytes32,int24)")
+	SelInfinityPoolKey      = infinitySelector("poolIdToPoolKey(bytes32)")
+	SelExtsload             = [4]byte{0x1e, 0x2e, 0xae, 0xaf}
 )
+
+func infinitySelector(signature string) [4]byte {
+	h := crypto.Keccak256([]byte(signature))
+	var out [4]byte
+	copy(out[:], h[:4])
+	return out
+}
 
 // Errors surfaced by decoding. A short or malformed return is a hard error — the
 // caller must fail the read, never treat a missing word as zero (design §381).
@@ -50,6 +65,43 @@ func CallLiquidity() []byte   { return SelLiquidity[:] }
 func CallToken0() []byte      { return SelToken0[:] }
 func CallToken1() []byte      { return SelToken1[:] }
 
+func CallInfinityGetSlot0(id [32]byte) []byte     { return callBytes32(SelInfinityGetSlot0, id) }
+func CallInfinityGetLiquidity(id [32]byte) []byte { return callBytes32(SelInfinityGetLiquidity, id) }
+func CallInfinityPoolKey(id [32]byte) []byte      { return callBytes32(SelInfinityPoolKey, id) }
+func CallInfinityGetBitmap(id [32]byte, word int16) []byte {
+	out := make([]byte, 4+2*wordLen)
+	copy(out[:4], SelInfinityGetBitmap[:])
+	copy(out[4:36], id[:])
+	putSignedWord(out[36:], int64(word))
+	return out
+}
+func CallInfinityGetTick(id [32]byte, tick int32) []byte {
+	out := make([]byte, 4+2*wordLen)
+	copy(out[:4], SelInfinityGetTick[:])
+	copy(out[4:36], id[:])
+	putSignedWord(out[36:], int64(tick))
+	return out
+}
+func CallExtsload(slot [32]byte) []byte { return callBytes32(SelExtsload, slot) }
+func callBytes32(sel [4]byte, id [32]byte) []byte {
+	out := make([]byte, 4+wordLen)
+	copy(out[:4], sel[:])
+	copy(out[4:], id[:])
+	return out
+}
+func putSignedWord(dst []byte, n int64) {
+	fill := byte(0)
+	if n < 0 {
+		fill = 0xff
+	}
+	for i := range dst {
+		dst[i] = fill
+	}
+	for i := 0; i < 8; i++ {
+		dst[len(dst)-1-i] = byte(uint64(n) >> (8 * i))
+	}
+}
+
 // CallBalanceOf builds balanceOf(address) calldata: selector + 32-byte left-padded
 // address. addr is the 20 raw address bytes.
 func CallBalanceOf(addr [20]byte) []byte {
@@ -62,8 +114,8 @@ func CallBalanceOf(addr [20]byte) []byte {
 
 // V2Reserves is the decoded getReserves() result.
 type V2Reserves struct {
-	Reserve0         *big.Int
-	Reserve1         *big.Int
+	Reserve0           *big.Int
+	Reserve1           *big.Int
 	BlockTimestampLast uint32
 }
 
@@ -105,6 +157,147 @@ func DecodeUint128(ret []byte) (*big.Int, error) {
 		return nil, ErrValueOutOfRange
 	}
 	return v, nil
+}
+
+// InfinitySlot0 is Pancake Infinity CL's unpacked slot0 view result.
+type InfinitySlot0 struct {
+	SqrtPriceX96 *big.Int
+	Tick         int32
+	ProtocolFee  uint32
+	LPFee        uint32
+}
+
+func DecodeInfinitySlot0(ret []byte) (*InfinitySlot0, error) {
+	if len(ret) < 4*wordLen {
+		return nil, ErrReturnTooShort
+	}
+	sqrt := new(big.Int).SetBytes(ret[:wordLen])
+	if sqrt.BitLen() > 160 {
+		return nil, ErrValueOutOfRange
+	}
+	tick, err := decodeInt24(ret[wordLen : 2*wordLen])
+	if err != nil {
+		return nil, err
+	}
+	protocol := new(big.Int).SetBytes(ret[2*wordLen : 3*wordLen])
+	lp := new(big.Int).SetBytes(ret[3*wordLen : 4*wordLen])
+	if protocol.BitLen() > 24 || lp.BitLen() > 24 {
+		return nil, ErrValueOutOfRange
+	}
+	return &InfinitySlot0{SqrtPriceX96: sqrt, Tick: tick, ProtocolFee: uint32(protocol.Uint64()), LPFee: uint32(lp.Uint64())}, nil
+}
+
+func DecodeInfinitySlot0Storage(ret []byte) (*InfinitySlot0, error) {
+	if len(ret) < wordLen {
+		return nil, ErrReturnTooShort
+	}
+	x := new(big.Int).SetBytes(ret[:wordLen])
+	sqrt := new(big.Int).Set(x)
+	sqrt.And(sqrt, new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 160), big.NewInt(1)))
+	if sqrt.Sign() == 0 || sqrt.BitLen() > 160 {
+		return nil, ErrValueOutOfRange
+	}
+	t := new(big.Int).Rsh(new(big.Int).Set(x), 160)
+	t.And(t, new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 24), big.NewInt(1)))
+	tick := int32(t.Int64())
+	if t.Bit(23) != 0 {
+		tick -= 1 << 24
+	}
+	protocol := new(big.Int).Rsh(new(big.Int).Set(x), 184)
+	protocol.And(protocol, new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 24), big.NewInt(1)))
+	lp := new(big.Int).Rsh(new(big.Int).Set(x), 208)
+	lp.And(lp, new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 24), big.NewInt(1)))
+	return &InfinitySlot0{SqrtPriceX96: sqrt, Tick: tick, ProtocolFee: uint32(protocol.Uint64()), LPFee: uint32(lp.Uint64())}, nil
+}
+
+// InfinityPoolKey is the generated getter result for poolIdToPoolKey.
+type InfinityPoolKey struct {
+	Currency0   [20]byte
+	Currency1   [20]byte
+	Hooks       [20]byte
+	PoolManager [20]byte
+	Fee         uint32
+	Parameters  [32]byte
+}
+
+func DecodeInfinityPoolKey(ret []byte) (*InfinityPoolKey, error) {
+	if len(ret) < 6*wordLen {
+		return nil, ErrReturnTooShort
+	}
+	var out InfinityPoolKey
+	var err error
+	if out.Currency0, err = DecodeAddress(ret[:wordLen]); err != nil {
+		return nil, err
+	}
+	if out.Currency1, err = DecodeAddress(ret[wordLen : 2*wordLen]); err != nil {
+		return nil, err
+	}
+	if out.Hooks, err = DecodeAddress(ret[2*wordLen : 3*wordLen]); err != nil {
+		return nil, err
+	}
+	if out.PoolManager, err = DecodeAddress(ret[3*wordLen : 4*wordLen]); err != nil {
+		return nil, err
+	}
+	fee := new(big.Int).SetBytes(ret[4*wordLen : 5*wordLen])
+	if fee.BitLen() > 24 {
+		return nil, ErrValueOutOfRange
+	}
+	out.Fee = uint32(fee.Uint64())
+	copy(out.Parameters[:], ret[5*wordLen:6*wordLen])
+	return &out, nil
+}
+
+func DecodeInfinityBitmap(ret []byte) (*big.Int, error) { return DecodeUint256(ret) }
+
+type InfinityTickInfo struct {
+	LiquidityGross *big.Int
+	LiquidityNet   *big.Int
+}
+
+func DecodeInfinityTickInfo(ret []byte) (*InfinityTickInfo, error) {
+	if len(ret) < 2*wordLen {
+		return nil, ErrReturnTooShort
+	}
+	gross := new(big.Int).SetBytes(ret[:wordLen])
+	if gross.BitLen() > 128 {
+		return nil, ErrValueOutOfRange
+	}
+	netWord := ret[wordLen : 2*wordLen]
+	neg := netWord[0]&0x80 != 0
+	fill := byte(0)
+	if neg {
+		fill = 0xff
+	}
+	for _, b := range netWord[:wordLen-16] {
+		if b != fill {
+			return nil, ErrValueOutOfRange
+		}
+	}
+	buf := make([]byte, wordLen)
+	if neg {
+		for i := range buf {
+			buf[i] = 0xff
+		}
+	}
+	copy(buf[wordLen-16:], netWord[wordLen-16:])
+	net := new(big.Int).SetBytes(buf)
+	if neg {
+		net.Sub(net, new(big.Int).Lsh(big.NewInt(1), 128))
+	}
+	return &InfinityTickInfo{LiquidityGross: gross, LiquidityNet: net}, nil
+}
+
+func DecodeInfinityTickStorage(ret []byte) (*InfinityTickInfo, error) {
+	if len(ret) < wordLen {
+		return nil, ErrReturnTooShort
+	}
+	x := ret[:wordLen]
+	gross := new(big.Int).SetBytes(x[wordLen-16:])
+	net := new(big.Int).SetBytes(x[:16])
+	if net.Bit(127) != 0 {
+		net.Sub(net, new(big.Int).Lsh(big.NewInt(1), 128))
+	}
+	return &InfinityTickInfo{LiquidityGross: gross, LiquidityNet: net}, nil
 }
 
 // V3Slot0 is the decoded slot0() head (only the fields we consume).

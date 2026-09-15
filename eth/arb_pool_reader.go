@@ -22,6 +22,7 @@
 package eth
 
 import (
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/arb"
 )
 
@@ -51,7 +53,7 @@ const viewGas = 2_000_000
 // PoolReadError wraps a budget/exec failure so callers can distinguish it from a
 // clean "pool does not implement this" decode error.
 var (
-	ErrViewCallReverted = errors.New("arb: pool view call reverted or failed")
+	ErrViewCallReverted  = errors.New("arb: pool view call reverted or failed")
 	ErrReadBudgetTripped = errors.New("arb: read budget tripped during pool read")
 )
 
@@ -168,6 +170,254 @@ type V3Snapshot struct {
 	Liquidity    *big.Int
 }
 
+type InfinityBitmapWord struct {
+	Index int16
+	Value *big.Int
+}
+
+type InfinityTickSnapshot struct {
+	Index          int32
+	LiquidityGross *big.Int
+	LiquidityNet   *big.Int
+}
+
+type InfinitySnapshot struct {
+	Manager          common.Address
+	PoolKey          common.Hash
+	Hook             common.Address
+	SqrtPriceX96     *big.Int
+	Tick             int32
+	Liquidity        *big.Int
+	BitmapWords      []InfinityBitmapWord
+	InitializedTicks []InfinityTickSnapshot
+	CoverageMinTick  int32
+	CoverageMaxTick  int32
+	EffectiveFeeNum  uint32
+	EffectiveFeeDen  uint32
+}
+
+func floorDiv(a, b int64) int64 {
+	q := a / b
+	r := a % b
+	if r != 0 && ((r > 0) != (b > 0)) {
+		q--
+	}
+	return q
+}
+
+const infinityPoolsMappingSlot uint64 = 6
+
+func infinityMappingSlot(id common.Hash, slot uint64) common.Hash {
+	var enc [64]byte
+	copy(enc[:32], id.Bytes())
+	binary.BigEndian.PutUint64(enc[56:], slot)
+	return common.BytesToHash(crypto.Keccak256(enc[:]))
+}
+
+func infinityNestedMappingSlot(key int64, slot common.Hash) common.Hash {
+	var enc [64]byte
+	if key < 0 {
+		for i := 0; i < 32; i++ {
+			enc[i] = 0xff
+		}
+	}
+	binary.BigEndian.PutUint64(enc[24:32], uint64(key))
+	copy(enc[32:], slot.Bytes())
+	return common.BytesToHash(crypto.Keccak256(enc[:]))
+}
+
+func (c *poolCaller) infinityStorageWord(manager common.Address, slot common.Hash) ([]byte, error) {
+	return c.staticCall(manager, arb.CallExtsload(slot))
+}
+
+// readInfinityStorage supports the deployed BSC Infinity manager revision,
+// which exposes extsload but not the later typed getter functions.
+func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.Hash, spacingHint int64) (*InfinitySnapshot, error) {
+	base := infinityMappingSlot(poolID, infinityPoolsMappingSlot)
+	packed, err := c.infinityStorageWord(manager, base)
+	if err != nil {
+		return nil, err
+	}
+	slot, err := arb.DecodeInfinitySlot0Storage(packed)
+	if err != nil {
+		return nil, err
+	}
+	liquiditySlot := common.BytesToHash(new(big.Int).Add(new(big.Int).SetBytes(base.Bytes()), big.NewInt(3)).Bytes())
+	liqRaw, err := c.infinityStorageWord(manager, liquiditySlot)
+	if err != nil {
+		return nil, err
+	}
+	liq, err := arb.DecodeUint128(liqRaw)
+	if err != nil {
+		return nil, err
+	}
+	var hook common.Address
+	spacing := spacingHint
+	if spacing <= 0 {
+		return nil, errors.New("arb: infinity tick spacing required for legacy manager")
+	}
+	if spacing <= 0 || spacing > 16383 {
+		return nil, errors.New("arb: infinity invalid tick spacing")
+	}
+	baseCompressed := floorDiv(int64(slot.Tick), spacing)
+	baseWord := floorDiv(baseCompressed, 256)
+	if baseWord < -32768 || baseWord > 32767 {
+		return nil, errors.New("arb: infinity bitmap word out of range")
+	}
+	bitmapBase := new(big.Int).Add(new(big.Int).SetBytes(base.Bytes()), big.NewInt(5))
+	tickBase := new(big.Int).Add(new(big.Int).SetBytes(base.Bytes()), big.NewInt(4))
+	readMap := func(mapBase *big.Int, key int64) ([]byte, error) {
+		return c.infinityStorageWord(manager, infinityNestedMappingSlot(key, common.BytesToHash(mapBase.Bytes())))
+	}
+	words := make([]InfinityBitmapWord, 0, 3)
+	ticks := make([]InfinityTickSnapshot, 0)
+	minTick, maxTick := int64(1<<31-1), int64(-1<<31)
+	for wi := int64(baseWord - 1); wi <= baseWord+1; wi++ {
+		if wi < -32768 || wi > 32767 {
+			continue
+		}
+		raw, rerr := readMap(bitmapBase, wi)
+		if rerr != nil {
+			return nil, rerr
+		}
+		bitmap, derr := arb.DecodeInfinityBitmap(raw)
+		if derr != nil {
+			return nil, derr
+		}
+		words = append(words, InfinityBitmapWord{Index: int16(wi), Value: bitmap})
+		lo, hi := wi*256*spacing, (wi*256+255)*spacing
+		if lo < minTick {
+			minTick = lo
+		}
+		if hi > maxTick {
+			maxTick = hi
+		}
+		for bit := int64(0); bit < 256; bit++ {
+			if bitmap.Bit(int(bit)) == 0 {
+				continue
+			}
+			tick64 := (wi*256 + bit) * spacing
+			traw, terr := readMap(tickBase, tick64)
+			if terr != nil {
+				return nil, terr
+			}
+			ti, derr := arb.DecodeInfinityTickStorage(traw)
+			if derr != nil {
+				return nil, derr
+			}
+			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
+		}
+	}
+	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: hook, SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick,
+		Liquidity: liq, BitmapWords: words, InitializedTicks: ticks, CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick),
+		EffectiveFeeNum: slot.LPFee, EffectiveFeeDen: 1_000_000}, nil
+}
+
+// ReadInfinityCL reads a Pancake Infinity CL singleton through the manager's
+// public getters. Three adjacent bitmap words give the quote engine a bounded,
+// honest coverage window; every initialized bit in those words is fetched.
+func (c *poolCaller) ReadInfinityCL(manager common.Address, poolID common.Hash) (*InfinitySnapshot, error) {
+	return c.readInfinityCL(manager, poolID, 0)
+}
+
+func (c *poolCaller) ReadInfinityCLWithSpacing(manager common.Address, poolID common.Hash, spacing int64) (*InfinitySnapshot, error) {
+	return c.readInfinityCL(manager, poolID, spacing)
+}
+
+func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, spacingHint int64) (*InfinitySnapshot, error) {
+	slotRaw, err := c.staticCall(manager, arb.CallInfinityGetSlot0(poolID))
+	if err != nil {
+		return c.readInfinityStorage(manager, poolID, spacingHint)
+	}
+	slot, err := arb.DecodeInfinitySlot0(slotRaw)
+	if err != nil {
+		return nil, err
+	}
+	liqRaw, err := c.staticCall(manager, arb.CallInfinityGetLiquidity(poolID))
+	if err != nil {
+		return nil, err
+	}
+	liq, err := arb.DecodeUint128(liqRaw)
+	if err != nil {
+		return nil, err
+	}
+	keyRaw, err := c.staticCall(manager, arb.CallInfinityPoolKey(poolID))
+	if err != nil {
+		return nil, err
+	}
+	key, err := arb.DecodeInfinityPoolKey(keyRaw)
+	if err != nil {
+		return nil, err
+	}
+	if common.BytesToAddress(key.PoolManager[:]) != manager {
+		return nil, errors.New("arb: infinity pool manager mismatch")
+	}
+	params := new(big.Int).SetBytes(key.Parameters[:])
+	spacing := int64(new(big.Int).Rsh(params, 16).Uint64() & 0xffffff)
+	if spacingHint > 0 {
+		spacing = spacingHint
+	}
+	if spacing <= 0 || spacing > 16383 {
+		return nil, errors.New("arb: infinity invalid tick spacing")
+	}
+	baseCompressed := floorDiv(int64(slot.Tick), spacing)
+	baseWord := floorDiv(baseCompressed, 256)
+	if baseWord < -32768 || baseWord > 32767 {
+		return nil, errors.New("arb: infinity bitmap word out of range")
+	}
+	words := make([]InfinityBitmapWord, 0, 3)
+	ticks := make([]InfinityTickSnapshot, 0)
+	minTick := int64(1<<31 - 1)
+	maxTick := int64(-1 << 31)
+	for wi := int64(baseWord - 1); wi <= baseWord+1; wi++ {
+		if wi < -32768 || wi > 32767 {
+			continue
+		}
+		word := int16(wi)
+		raw, rerr := c.staticCall(manager, arb.CallInfinityGetBitmap(poolID, word))
+		if rerr != nil {
+			return nil, rerr
+		}
+		bitmap, derr := arb.DecodeInfinityBitmap(raw)
+		if derr != nil {
+			return nil, derr
+		}
+		words = append(words, InfinityBitmapWord{Index: word, Value: bitmap})
+		lo := (wi * 256) * spacing
+		hi := (wi*256 + 255) * spacing
+		if lo < minTick {
+			minTick = lo
+		}
+		if hi > maxTick {
+			maxTick = hi
+		}
+		for bit := int64(0); bit < 256; bit++ {
+			if bitmap.Bit(int(bit)) == 0 {
+				continue
+			}
+			tick64 := (wi*256 + bit) * spacing
+			if tick64 < -8388608 || tick64 > 8388607 {
+				return nil, errors.New("arb: infinity tick out of range")
+			}
+			traw, terr := c.staticCall(manager, arb.CallInfinityGetTick(poolID, int32(tick64)))
+			if terr != nil {
+				return nil, terr
+			}
+			ti, derr := arb.DecodeInfinityTickInfo(traw)
+			if derr != nil {
+				return nil, derr
+			}
+			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
+		}
+	}
+	if minTick > maxTick {
+		minTick, maxTick = int64(slot.Tick), int64(slot.Tick)
+	}
+	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: common.BytesToAddress(key.Hooks[:]),
+		SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick, Liquidity: liq, BitmapWords: words, InitializedTicks: ticks,
+		CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick), EffectiveFeeNum: slot.LPFee, EffectiveFeeDen: 1_000_000}, nil
+}
+
 // ReadV3Head reads slot0() and liquidity() on the pool.
 func (c *poolCaller) ReadV3Head(pool common.Address) (*V3Snapshot, error) {
 	ret, err := c.staticCall(pool, arb.CallSlot0())
@@ -187,6 +437,23 @@ func (c *poolCaller) ReadV3Head(pool common.Address) (*V3Snapshot, error) {
 		return nil, err
 	}
 	return &V3Snapshot{SqrtPriceX96: s0.SqrtPriceX96, Tick: s0.Tick, Liquidity: liq}, nil
+}
+
+// BalanceOf reads ERC20 balanceOf(holder) on the token contract via the same
+// budgeted+StaticCall read path as the pool getters. It is the §391 primitive used to
+// measure the candidate beneficiary's standardized base-token (e.g. WBNB) retention:
+// the base token is an ERC20, so its balance lives in the token's storage mapping —
+// NOT a native account balance (GetBalance would read native BNB, which is wrong).
+// Any revert / budget trip aborts with an error — never a fabricated balance (§381),
+// so the caller can distinguish "unmeasured" from "measured zero".
+func (c *poolCaller) BalanceOf(token, holder common.Address) (*big.Int, error) {
+	var raw [20]byte
+	copy(raw[:], holder.Bytes())
+	out, err := c.staticCall(token, arb.CallBalanceOf(raw))
+	if err != nil {
+		return nil, err
+	}
+	return arb.DecodeUint256(out)
 }
 
 // NewPoolCallerAtHead builds a pool caller at the current canonical head state, for

@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
@@ -122,7 +123,16 @@ type CandidateResult struct {
 	// PostState is the isolated post-candidate state, non-nil ONLY when the prefix AND
 	// the candidate all succeeded. It is a quotable read handle, not a send permit.
 	PostState *state.StateDB
-	Budget    *arb.ReadBudget
+	// PrefixPostState is an isolated snapshot taken AFTER the signed prefix completed
+	// but BEFORE our unsigned candidate ran — the §391 T0 boundary for the candidate's
+	// standardized base-token retention. Non-nil ONLY when the prefix completed (it is
+	// captured before we know whether the candidate will succeed). It is a Copy, so the
+	// later candidate execution never mutates it; reads run on it via the same read-only
+	// PostStatePoolCaller path. Isolating T0 here (not the base state) means the retention
+	// delta measured against PostState reflects OUR candidate alone, excluding any effect
+	// the victim prefix may have had on the beneficiary.
+	PrefixPostState *state.StateDB
+	Budget          *arb.ReadBudget
 }
 
 // targetExecutor binds a fixed parent header + base state and executes targets. It
@@ -151,7 +161,7 @@ func newTargetExecutor(chain core.ChainContext, parent *types.Header, base *stat
 // timestamp (real values from a verified block_env, or the parent+1 heuristic) and
 // gate the fork-specific calls exactly as Process does — so the preamble's fork
 // decisions always match the block context the txs run under.
-func (x *targetExecutor) applyPreamble(evm *vm.EVM, work *state.StateDB, num *big.Int, timeSec uint64) {
+func (x *targetExecutor) applyPreamble(evm *vm.EVM, work *state.StateDB, num *big.Int, timeSec uint64, beaconRoot *common.Hash) {
 	cfg := x.chain.Config()
 
 	// BSC built-in system contract code upgrades at block begin (parlia-specific).
@@ -160,6 +170,9 @@ func (x *targetExecutor) applyPreamble(evm *vm.EVM, work *state.StateDB, num *bi
 	// EIP-4788 beacon root (if the built env carries one) and EIP-2935 parent hash
 	// (Prague/Verkle). We build against the parent, so the parent block hash is the
 	// history entry to store.
+	if beaconRoot != nil {
+		core.ProcessBeaconBlockRoot(*beaconRoot, evm)
+	}
 	if cfg.IsPrague(num, timeSec) || cfg.IsVerkle(num, timeSec) {
 		core.ProcessParentBlockHash(x.parent.Hash(), evm)
 	}
@@ -176,14 +189,17 @@ func (x *targetExecutor) blockTime() uint64 { return x.parent.Time + 1 }
 // session state is "post-preamble, pre-first-tx". Both ExecuteTarget (single tx) and
 // ExecutePrefix (ordered bundle) drive the SAME session so the two paths never drift.
 type execSession struct {
-	x       *targetExecutor
-	work    *state.StateDB
-	evm     *vm.EVM
-	num     *big.Int
-	signer  types.Signer
-	baseFee *big.Int
-	gp      *core.GasPool // shared across the whole prefix, like a real block
-	budget  *arb.ReadBudget
+	header      *types.Header
+	usedGas     uint64
+	blobGasUsed uint64
+	x           *targetExecutor
+	work        *state.StateDB
+	evm         *vm.EVM
+	num         *big.Int
+	signer      types.Signer
+	baseFee     *big.Int
+	gp          *core.GasPool // shared across the whole prefix, like a real block
+	budget      *arb.ReadBudget
 }
 
 // newExecSession isolates the base, builds the target-env EVM with the EXPLICIT
@@ -196,63 +212,22 @@ func (x *targetExecutor) newExecSession(budget *arb.ReadBudget, env *resolvedBlo
 	work := x.base.Copy() // isolate; lazy cache fills never touch the borrowed base
 	wrapped := newBudgetedStateDB(work, budget)
 
-	// Resolve the target block env: real values from a verified block_env, else the
-	// honest parent+1 heuristic.
-	var (
-		num        *big.Int
-		timeSec    uint64
-		author     common.Address
-		gasLimit   uint64
-		difficulty *big.Int
-		baseFee    *big.Int
-		getHash    vm.GetHashFunc
-	)
+	var header *types.Header
 	if env != nil {
-		num = new(big.Int).Set(env.number)
-		timeSec = env.timeSec
-		author = env.author
-		gasLimit = env.gasLimit
-		difficulty = new(big.Int).Set(env.difficulty)
-		baseFee = env.baseFee
-		// A verified env gives us the true parent hash linkage, so a synthetic N+1
-		// header (ParentHash = parent.Hash(), Number = N+1) makes GetHashFn resolve
-		// BLOCKHASH(parent.number) correctly — closing the off-by-one the heuristic
-		// path documents below.
-		n1 := &types.Header{Number: new(big.Int).Set(num), ParentHash: x.parent.Hash()}
-		getHash = core.GetHashFn(n1, x.chain)
+		header = types.CopyHeader(env.header)
 	} else {
-		num = new(big.Int).Add(x.parent.Number, big.NewInt(1))
-		timeSec = x.blockTime()
-		author = x.author
-		gasLimit = x.parent.GasLimit
-		difficulty = new(big.Int).Set(x.parent.Difficulty)
-		baseFee = x.baseFee()
-		// BLOCKHASH resolution (honest limitation of the heuristic path): GetHashFn
-		// walks back from ref.ParentHash, so using the parent header as ref resolves
-		// BLOCKHASH for numbers < parent.number correctly but is off-by-one for
-		// BLOCKHASH(parent.number) in an N+1 simulation. Target txs that read BLOCKHASH
-		// of the immediate parent are therefore not exact without a block_env; the
-		// env path above closes this. Simple value/DEX target txs do not use BLOCKHASH.
-		getHash = core.GetHashFn(x.parent, x.chain)
+		header = &types.Header{Number: new(big.Int).Add(x.parent.Number, big.NewInt(1)), ParentHash: x.parent.Hash(), Time: x.blockTime(), Coinbase: x.author, GasLimit: x.parent.GasLimit, Difficulty: new(big.Int).Set(x.parent.Difficulty), BaseFee: x.baseFee()}
 	}
+	num, timeSec, baseFee := header.Number, header.Time, header.BaseFee
+	blockCtx := core.NewEVMBlockContext(header, x.chain, &header.Coinbase)
 
-	blockCtx := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
-		GetHash:     getHash,
-		Coinbase:    author, // EXPLICIT author, never a silent zero (§7.1)
-		BlockNumber: num,
-		Time:        timeSec,
-		Difficulty:  difficulty,
-		GasLimit:    gasLimit,
-		BaseFee:     baseFee,
-	}
 	evm := vm.NewEVM(blockCtx, wrapped, x.chain.Config(), vm.Config{})
 	wrapped.SetCancel(evm.Cancel)
 
-	x.applyPreamble(evm, work, num, timeSec)
+	x.applyPreamble(evm, work, num, timeSec, header.ParentBeaconRoot)
 
 	return &execSession{
+		header:  header,
 		x:       x,
 		work:    work,
 		evm:     evm,
@@ -288,6 +263,12 @@ func (x *targetExecutor) PostStatePoolCaller(post *state.StateDB, budget *arb.Re
 // non-success (§357). A message-build failure classifies as a core/validity error
 // (never infra).
 func (s *execSession) applyOne(tx *types.Transaction, index int) PrefixTxOutcome {
+	if tx.Type() == types.BlobTxType {
+		if s.header.BlobGasUsed == nil || !eip4844.IsBlobEligibleBlock(s.x.chain.Config(), s.num.Uint64(), s.header.Time) || tx.BlobGas() > *s.header.BlobGasUsed-s.blobGasUsed {
+			return PrefixTxOutcome{Class: arb.Classify(arb.ExecSignals{CoreError: true})}
+		}
+		s.blobGasUsed += tx.BlobGas()
+	}
 	// Build the message against the TARGET env (never pool head, design §273). This
 	// path RECOVERS the sender from the signature (TransactionToMessage), so it is
 	// only for SIGNED txs (the target prefix). Our own unsigned candidate goes through
@@ -308,9 +289,8 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 	// Per-tx context (§8.2): establish txHash/index before applying.
 	s.work.SetTxContext(tx.Hash(), index)
 
-	var usedGas uint64
 	receipt, applyErr := core.ApplyTransactionWithEVM(
-		msg, s.gp, s.work, s.num, common.Hash{}, s.x.blockTime(), tx, &usedGas, s.evm,
+		msg, s.gp, s.work, s.num, common.Hash{}, s.header.Time, tx, &s.usedGas, s.evm,
 	)
 
 	sig := s.x.collectSignals(s.budget, s.evm, s.work, receipt, applyErr)
@@ -318,6 +298,10 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 
 	out := PrefixTxOutcome{Class: class}
 	if class.ReceiptTrusted {
+
+		// Native receipt derivation fills this outside ApplyTransactionWithEVM.
+		// Our standalone simulation must expose the actual message gas price.
+		receipt.EffectiveGasPrice = new(big.Int).Set(msg.GasPrice)
 		out.Receipt = receipt
 		out.UsedGas = receipt.GasUsed
 	}
@@ -492,6 +476,11 @@ func (x *targetExecutor) runCandidate(
 		}
 	}
 	res.PrefixCompleted = true
+	// §391 T0 boundary: snapshot the post-prefix state BEFORE our candidate mutates it.
+	// Copy() isolates it so the candidate execution below never changes what T0 reads
+	// (s.work keeps advancing into the T2/post-candidate state). Captured unconditionally
+	// once the prefix completed; the RPC layer decides whether to actually read it.
+	res.PrefixPostState = s.work.Copy()
 
 	// 2) OUR unsigned candidate, with an injected real sender (no sig recovery).
 	msg := s.candidateMessage(ours)

@@ -9,13 +9,13 @@ import (
 
 // mockBackend is a controllable Backend for policy tests. No node, no triedb.
 type mockBackend struct {
-	scheme      StateScheme
-	headRoot    common.Hash
-	headNum     uint64
-	readable    map[common.Hash]bool
-	historic    map[common.Hash]bool
-	pinned      map[common.Hash]int // net pin count
-	pinErr      error
+	scheme   StateScheme
+	headRoot common.Hash
+	headNum  uint64
+	readable map[common.Hash]bool
+	historic map[common.Hash]bool
+	pinned   map[common.Hash]int // net pin count
+	pinErr   error
 }
 
 func newMock(scheme StateScheme) *mockBackend {
@@ -27,9 +27,9 @@ func newMock(scheme StateScheme) *mockBackend {
 	}
 }
 
-func (m *mockBackend) Scheme() StateScheme                 { return m.scheme }
+func (m *mockBackend) Scheme() StateScheme                    { return m.scheme }
 func (m *mockBackend) CurrentHeadRoot() (common.Hash, uint64) { return m.headRoot, m.headNum }
-func (m *mockBackend) Readable(root common.Hash) bool      { return m.readable[root] }
+func (m *mockBackend) Readable(root common.Hash) bool         { return m.readable[root] }
 func (m *mockBackend) CanServeHistoric(root common.Hash) bool { return m.historic[root] }
 
 func (m *mockBackend) Pin(root common.Hash) error {
@@ -54,7 +54,7 @@ func h(b byte) common.Hash {
 // fixedClock returns a controllable clock.
 type fixedClock struct{ now time.Time }
 
-func (c *fixedClock) Clock() Clock       { return func() time.Time { return c.now } }
+func (c *fixedClock) Clock() Clock            { return func() time.Time { return c.now } }
 func (c *fixedClock) advance(d time.Duration) { c.now = c.now.Add(d) }
 
 func TestHashSchemePinsAndReleases(t *testing.T) {

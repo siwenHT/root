@@ -118,6 +118,7 @@ type Config = ethconfig.Config
 
 // Ethereum implements the Ethereum full node service.
 type Ethereum struct {
+	arbService *arbService
 	// core protocol objects
 	config         *ethconfig.Config
 	txPool         *txpool.TxPool
@@ -555,10 +556,15 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewNetAPI(eth.p2pServer, networkID)
 
+	// Construct the isolated arb RPC worker service.
+	eth.arbService, err = eth.newArbService(arbServiceConfig{})
+	if err != nil { return nil, err }
+
 	// Register the backend on the node
 	stack.RegisterAPIs(eth.APIs())
 	stack.RegisterProtocols(eth.Protocols())
 	stack.RegisterLifecycle(eth)
+	stack.RegisterLifecycle(eth.arbService)
 
 	// Successful startup; push a marker and check previous unclean shutdowns.
 	eth.shutdownTracker.MarkStartup()
@@ -599,6 +605,7 @@ func makeExtraData(extra []byte) []byte {
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *Ethereum) APIs() []rpc.API {
 	apis := ethapi.GetAPIs(s.APIBackend)
+	if s.arbService != nil { apis = append(apis, rpc.API{Namespace: "arb", Service: NewArbAPI(s.arbService)}) }
 
 	// Append any APIs exposed explicitly by the consensus engine
 	if p, ok := s.engine.(*parlia.Parlia); ok {

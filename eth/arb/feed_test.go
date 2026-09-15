@@ -66,8 +66,8 @@ func TestSeqStartsAtOneAssignedBeforeQueue(t *testing.T) {
 func TestFullQueueDropsOldestButAdvancesSeqAndCountsGap(t *testing.T) {
 	// cap 2 items. enqueue 3; oldest dropped, seq keeps advancing, dropped=1.
 	e, _ := NewStreamEmitter(mkBoot(2), "s", 2, 10_000)
-	e.Enqueue(KindPending, payload(10)) // seq1
-	e.Enqueue(KindPending, payload(10)) // seq2
+	e.Enqueue(KindPending, payload(10))          // seq1
+	e.Enqueue(KindPending, payload(10))          // seq2
 	s3, _ := e.Enqueue(KindPending, payload(10)) // seq3 evicts seq1
 	if s3 != 3 {
 		t.Fatalf("seq must advance to 3, got %d", s3)

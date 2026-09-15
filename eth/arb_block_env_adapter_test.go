@@ -31,7 +31,7 @@ func validEnvForExecutor(x *targetExecutor) arb.BlockEnv {
 		Author:           strings.ToLower(author.Hex()),
 		GasLimit:         strconv.FormatUint(x.parent.GasLimit, 10),
 		Difficulty:       x.parent.Difficulty.String(),
-		MixDigest:        validHash32,
+		MixDigest:        common.Hash{}.Hex(),
 		ExtraData:        "0x",
 		ForkRulesDigest:  validHash32,
 	}
@@ -40,7 +40,11 @@ func validEnvForExecutor(x *targetExecutor) arb.BlockEnv {
 		s := bf.String()
 		env.BaseFee = &s
 	}
-	return env
+	prepared, err := x.prepareBlockEnv(env)
+	if err != nil {
+		panic(err)
+	}
+	return prepared
 }
 
 // TestExecuteTargetWithEnvSucceeds proves the env-AWARE path runs a value transfer

@@ -32,13 +32,13 @@ import (
 type ReadKind uint8
 
 const (
-	ReadStorage       ReadKind = iota // GetState
-	ReadCommitted                     // GetCommittedState
-	ReadCode                          // GetCode / GetCodeSize / GetCodeHash
-	ReadBalance                       // GetBalance
-	ReadNonce                         // GetNonce
-	ReadStorageRoot                   // GetStorageRoot
-	ReadOther                         // any other counted logical access
+	ReadStorage     ReadKind = iota // GetState
+	ReadCommitted                   // GetCommittedState
+	ReadCode                        // GetCode / GetCodeSize / GetCodeHash
+	ReadBalance                     // GetBalance
+	ReadNonce                       // GetNonce
+	ReadStorageRoot                 // GetStorageRoot
+	ReadOther                       // any other counted logical access
 )
 
 func (k ReadKind) String() string {

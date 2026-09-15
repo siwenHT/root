@@ -54,11 +54,11 @@ type BlockEnv struct {
 // ErrBlockEnvBadField (errors.Is-checkable) with the field name for context; the
 // semantic invariants have their own sentinels.
 var (
-	ErrBlockEnvBadField     = errors.New("arb: block_env field malformed")
-	ErrZeroAuthor           = errors.New("arb: block_env author must be explicit non-zero (no silent zero author)")
-	ErrTimestampMismatch    = errors.New("arb: block_env timestamp_ms/1000 must equal timestamp_seconds")
-	ErrZeroNumber           = errors.New("arb: block_env number must be >= 1 (target = parent+1)")
-	ErrZeroGasLimit         = errors.New("arb: block_env gas_limit must be > 0")
+	ErrBlockEnvBadField  = errors.New("arb: block_env field malformed")
+	ErrZeroAuthor        = errors.New("arb: block_env author must be explicit non-zero (no silent zero author)")
+	ErrTimestampMismatch = errors.New("arb: block_env timestamp_ms/1000 must equal timestamp_seconds")
+	ErrZeroNumber        = errors.New("arb: block_env number must be >= 1 (target = parent+1)")
+	ErrZeroGasLimit      = errors.New("arb: block_env gas_limit must be > 0")
 )
 
 // ValidateBlockEnv enforces the wire shape and node-independent consistency of env.

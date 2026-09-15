@@ -42,15 +42,15 @@ func TestValidBlockEnvWithOptionalsPasses(t *testing.T) {
 
 func TestBadFieldsRejected(t *testing.T) {
 	cases := map[string]func(*BlockEnv){
-		"number non-decimal":      func(e *BlockEnv) { e.Number = "0x1f" },
-		"number leading zero":     func(e *BlockEnv) { e.Number = "007" },
-		"gas_limit sign":          func(e *BlockEnv) { e.GasLimit = "+5" },
-		"parent_hash short":       func(e *BlockEnv) { e.ParentHash = "0xabcd" },
-		"mix_digest uppercase":    func(e *BlockEnv) { e.MixDigest = "0x" + strings.Repeat("A", 64) },
-		"author short":            func(e *BlockEnv) { e.Author = "0x1234" },
-		"extra_data odd":          func(e *BlockEnv) { e.ExtraData = "0xabc" },
-		"fork_digest bad":         func(e *BlockEnv) { e.ForkRulesDigest = "nope" },
-		"timestamp_ms non-uint":   func(e *BlockEnv) { e.TimestampMs = "abc" },
+		"number non-decimal":    func(e *BlockEnv) { e.Number = "0x1f" },
+		"number leading zero":   func(e *BlockEnv) { e.Number = "007" },
+		"gas_limit sign":        func(e *BlockEnv) { e.GasLimit = "+5" },
+		"parent_hash short":     func(e *BlockEnv) { e.ParentHash = "0xabcd" },
+		"mix_digest uppercase":  func(e *BlockEnv) { e.MixDigest = "0x" + strings.Repeat("A", 64) },
+		"author short":          func(e *BlockEnv) { e.Author = "0x1234" },
+		"extra_data odd":        func(e *BlockEnv) { e.ExtraData = "0xabc" },
+		"fork_digest bad":       func(e *BlockEnv) { e.ForkRulesDigest = "nope" },
+		"timestamp_ms non-uint": func(e *BlockEnv) { e.TimestampMs = "abc" },
 	}
 	for name, mut := range cases {
 		e := validEnv()

@@ -175,7 +175,7 @@ func TestIdentityMismatchRejected(t *testing.T) {
 	}
 }
 
-func TestTTLElapseFlipsClosingAndRejectsBorrow(t *testing.T) {
+func TestTTLElapseReleasesUnborrowedHandleAndRejectsBorrow(t *testing.T) {
 	clk := &fixedClock{now: time.Unix(1000, 0)}
 	s := NewHandleStore(clk.Clock(), counterIDs())
 	id := s.Pin(idn("a"), time.Second)
@@ -183,8 +183,15 @@ func TestTTLElapseFlipsClosingAndRejectsBorrow(t *testing.T) {
 	if err := s.Borrow(id, idn("a")); err != ErrHandleTTLElapsed {
 		t.Fatalf("want TTL elapsed, got %v", err)
 	}
-	if st, _ := s.Status(id); st != StatusClosing {
-		t.Fatalf("TTL elapse must flip to closing, got %s", st)
+	if st, _ := s.Status(id); st != StatusReleased {
+		t.Fatalf("expired, unborrowed handle must release immediately, got %s", st)
+	}
+	released := s.DrainReleased()
+	if len(released) != 1 || released[0].ID != id || !released[0].Parent {
+		t.Fatal("parent lease must be released once")
+	}
+	if len(s.DrainReleased()) != 0 || s.Size() != 0 {
+		t.Fatal("released handle retained or released twice")
 	}
 }
 

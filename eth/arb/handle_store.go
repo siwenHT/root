@@ -90,14 +90,14 @@ type HandleIdentity struct {
 
 // Errors surfaced by the store.
 var (
-	ErrHandleNotFound     = errors.New("arb: handle not found")
-	ErrHandleNotActive    = errors.New("arb: handle not active (closing or released)")
-	ErrIdentityMismatch   = errors.New("arb: handle identity mismatch")
-	ErrHandleTTLElapsed   = errors.New("arb: handle TTL elapsed")
-	ErrParentNotActive    = errors.New("arb: parent handle not active for child creation")
-	ErrChildOnNonParent   = errors.New("arb: child handles may only extend a parent handle")
-	ErrNoBorrowToRelease  = errors.New("arb: no active borrow to release")
-	ErrNoChildToRelease   = errors.New("arb: no child to release")
+	ErrHandleNotFound    = errors.New("arb: handle not found")
+	ErrHandleNotActive   = errors.New("arb: handle not active (closing or released)")
+	ErrIdentityMismatch  = errors.New("arb: handle identity mismatch")
+	ErrHandleTTLElapsed  = errors.New("arb: handle TTL elapsed")
+	ErrParentNotActive   = errors.New("arb: parent handle not active for child creation")
+	ErrChildOnNonParent  = errors.New("arb: child handles may only extend a parent handle")
+	ErrNoBorrowToRelease = errors.New("arb: no active borrow to release")
+	ErrNoChildToRelease  = errors.New("arb: no child to release")
 )
 
 type handleEntry struct {
@@ -193,6 +193,7 @@ func (s *HandleStore) Borrow(id string, ident HandleIdentity) error {
 	if !s.clock().Before(e.expires) {
 		// TTL elapsed: flip to Closing so no further borrows are admitted.
 		e.status = StatusClosing
+		s.maybeRelease(e)
 		return ErrHandleTTLElapsed
 	}
 	if e.ident != ident {
@@ -284,3 +285,36 @@ func (s *HandleStore) Children(id string) int {
 	}
 	return 0
 }
+
+// Expire requests teardown even when no caller ever touches an abandoned handle.
+// Active borrows keep their state until ReleaseBorrow; children keep parent leases.
+func (s *HandleStore) Expire() {
+	now := s.clock()
+	for _, e := range s.entries {
+		if e.status == StatusActive && !now.Before(e.expires) {
+			e.status = StatusClosing
+		}
+	}
+	for _, e := range s.entries {
+		s.maybeRelease(e)
+	}
+}
+
+type ReleasedHandle struct {
+	ID     string
+	Parent bool
+}
+
+// DrainReleased removes tombstones exactly once; the adapter drops each concrete
+// state and unpins ONLY parent entries. A released child may also release its parent.
+func (s *HandleStore) DrainReleased() []ReleasedHandle {
+	var out []ReleasedHandle
+	for id, e := range s.entries {
+		if e.status == StatusReleased {
+			out = append(out, ReleasedHandle{id, e.kind == KindParent})
+			delete(s.entries, id)
+		}
+	}
+	return out
+}
+func (s *HandleStore) Size() int { return len(s.entries) }
