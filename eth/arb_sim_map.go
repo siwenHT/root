@@ -235,7 +235,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 	if err != nil {
 		return nil, err
 	}
-	target, err := decodeRaw(args.TargetRaw)
+	prefix, targetHash, err := decodeCandidatePrefix(args.TargetRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 	dig := arb.NewDigest("arb.req.simulateCandidate.v1").
 		FieldBytes([]byte(args.ParentHandle)).
 		FieldBytes([]byte(args.Stamp)).
-		FieldBytes(target.Hash().Bytes()).
+		FieldBytes(targetHash.Bytes()).
 		FieldBytes(env.From.Bytes()).
 		FieldU64(env.Nonce).
 		FieldU64(args.BudgetMicros)
@@ -281,7 +281,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		}
 		defer release()
 		x := newTargetExecutor(api.svc.eth.blockchain, header, base)
-		res, xerr := x.RunCandidateWithEnv([]*types.Transaction{target}, env, PurposeDiagnostic, budget, args.BlockEnv)
+		res, xerr := x.RunCandidateWithEnv(prefix, env, PurposeDiagnostic, budget, args.BlockEnv)
 		if xerr != nil {
 			return &arb.JobOutcome{Kind: "candidate", ErrCode: xerr.Error()}, false
 		}
@@ -311,6 +311,21 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		return nil, err
 	}
 	return &JobIDResult{JobID: jobID}, nil
+}
+
+// decodeCandidatePrefix distinguishes the two supported candidate sources.
+// "0x" is an explicit canonical-head state source and therefore has no signed
+// prefix and a zero target hash. Any other value must decode as one real signed
+// target; a missing field ("") remains invalid and cannot silently become direct.
+func decodeCandidatePrefix(raw string) ([]*types.Transaction, common.Hash, error) {
+	if raw == "0x" {
+		return nil, common.Hash{}, nil
+	}
+	target, err := decodeRaw(raw)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	return []*types.Transaction{target}, target.Hash(), nil
 }
 
 // decodeUnsigned turns the wire unsigned envelope into a CandidateEnvelope. from must

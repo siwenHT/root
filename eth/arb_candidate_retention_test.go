@@ -61,6 +61,22 @@ func TestDecodeMeasureTargetPairing(t *testing.T) {
 	}
 }
 
+func TestDecodeCandidatePrefixDirectIsExplicit(t *testing.T) {
+	prefix, targetHash, err := decodeCandidatePrefix("0x")
+	if err != nil {
+		t.Fatalf("explicit direct source must be accepted: %v", err)
+	}
+	if len(prefix) != 0 || targetHash != (common.Hash{}) {
+		t.Fatalf("direct source must use empty prefix and zero hash: len=%d hash=%s", len(prefix), targetHash)
+	}
+	if _, _, err := decodeCandidatePrefix(""); err == nil {
+		t.Fatal("missing target_raw must remain invalid")
+	}
+	if _, _, err := decodeCandidatePrefix("0x01"); err == nil {
+		t.Fatal("malformed non-empty target must remain invalid")
+	}
+}
+
 // TestBalanceOfReadsTokenStorageNotNative proves the §391 retention primitive reads
 // ERC20 balanceOf on the TOKEN contract — not the holder's native balance. The token
 // contract is mocked to return a fixed balance B; the holder is separately given a
