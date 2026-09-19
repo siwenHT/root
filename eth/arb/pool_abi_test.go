@@ -197,3 +197,26 @@ func TestDecodeUint256Short(t *testing.T) {
 		t.Fatalf("want too-short, got %v", err)
 	}
 }
+
+func TestTickInfoSigned128Boundaries(t *testing.T) {
+	for _, text := range []string{"-1", "-170141183460469231731687303715884105728", "0", "170141183460469231731687303715884105727"} {
+		value, _ := new(big.Int).SetString(text, 10)
+		encoded := new(big.Int).Set(value)
+		if encoded.Sign() < 0 {
+			encoded.Add(encoded, new(big.Int).Lsh(big.NewInt(1), 256))
+		}
+		raw := make([]byte, 64)
+		raw[31] = 1
+		encoded.FillBytes(raw[32:])
+		got, err := DecodeInfinityTickInfo(raw)
+		if err != nil || got.LiquidityNet.Cmp(value) != 0 {
+			t.Fatalf("%s: got %v error %v", text, got, err)
+		}
+	}
+	raw := make([]byte, 64)
+	raw[31] = 1
+	raw[48] = 0x80
+	if _, err := DecodeInfinityTickInfo(raw); err == nil {
+		t.Fatal("accepted inconsistent int128 sign extension")
+	}
+}

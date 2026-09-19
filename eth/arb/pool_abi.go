@@ -263,7 +263,7 @@ func DecodeInfinityTickInfo(ret []byte) (*InfinityTickInfo, error) {
 		return nil, ErrValueOutOfRange
 	}
 	netWord := ret[wordLen : 2*wordLen]
-	neg := netWord[0]&0x80 != 0
+	neg := netWord[wordLen-16]&0x80 != 0
 	fill := byte(0)
 	if neg {
 		fill = 0xff
@@ -273,14 +273,10 @@ func DecodeInfinityTickInfo(ret []byte) (*InfinityTickInfo, error) {
 			return nil, ErrValueOutOfRange
 		}
 	}
-	buf := make([]byte, wordLen)
-	if neg {
-		for i := range buf {
-			buf[i] = 0xff
-		}
-	}
-	copy(buf[wordLen-16:], netWord[wordLen-16:])
-	net := new(big.Int).SetBytes(buf)
+	// Interpret the low 128 bits before subtracting 2^128. Reading the
+	// sign-extended 256-bit word here turns every negative net into a huge
+	// positive value and makes post-target V3 snapshots unquotable.
+	net := new(big.Int).SetBytes(netWord[wordLen-16:])
 	if neg {
 		net.Sub(net, new(big.Int).Lsh(big.NewInt(1), 128))
 	}
