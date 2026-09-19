@@ -122,9 +122,10 @@ type CancelJobResult struct {
 
 // TargetSlotArgs is arb_getTargetSlot params.
 type TargetSlotArgs struct {
-	RequestID string `json:"request_id"`
-	Sender    string `json:"sender"`
-	Nonce     uint64 `json:"nonce"`
+	RequestID  string `json:"request_id"`
+	Sender     string `json:"sender"`
+	Nonce      uint64 `json:"nonce"`
+	TargetHash string `json:"target_hash,omitempty"`
 }
 
 // TargetSlotResult mirrors arb_getTargetSlot result_fields. current_raw/current_hash
@@ -370,6 +371,15 @@ func (api *ArbAPI) GetTargetSlot(args TargetSlotArgs) (*TargetSlotResult, error)
 		return nil, errBadSender
 	}
 	sender := common.HexToAddress(args.Sender)
+	if args.TargetHash != "" {
+		if !isID32Wire(args.TargetHash) {
+			return nil, errors.New("arb: invalid target_hash")
+		}
+		// The hash lookup has its own short-lived lock. ContentFrom holds the
+		// transaction-pool reset lock, which can delay this hot gate by 200ms.
+		tx := api.svc.eth.txPool.Get(common.HexToHash(args.TargetHash))
+		return targetSlotByHash(api.svc.boot, args, tx, types.LatestSigner(api.svc.eth.blockchain.Config()))
+	}
 	pending, queued := api.svc.eth.txPool.ContentFrom(sender)
 	res := &TargetSlotResult{Boot: api.svc.boot, SlotRevision: 0}
 	// Find the tx at exactly this nonce among pending (executable) then queued. The
