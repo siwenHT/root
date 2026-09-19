@@ -24,10 +24,12 @@ func TestV3PostWindowNegativeTickAndBoundedReads(t *testing.T) {
 			copy(out[32:64], bytes.Repeat([]byte{0xff}, 32)) // int128 -1
 			out[255] = 1
 			return out, nil
+		case bytes.Equal(data[:4], v3ViewCall("fee()", nil)):
+			return w32(big.NewInt(112)), nil
 		}
 		return nil, errors.New("unexpected selector")
 	}
-	snap, err := readV3Window(arb.PoolSnapshot{Kind: "v3", Tick: "-1"}, 1, call)
+	snap, err := readV3Full(arb.PoolSnapshot{Kind: "v3", Tick: "-1"}, 1, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,9 +39,15 @@ func TestV3PostWindowNegativeTickAndBoundedReads(t *testing.T) {
 	if snap.InitializedTicks[0].Index != "-1" || snap.InitializedTicks[0].LiquidityNet != "-1" {
 		t.Fatal("lost signed tick or liquidity")
 	}
+	if !snap.EffectiveFeeResolved || snap.EffectiveFeeNum != "112" || snap.EffectiveFeeDen != "1000000" {
+		t.Fatal("v3 effective fee missing")
+	}
 	wire := poolSnapshotWire(snap)
 	if len(wire["bitmap_words"].([]any)) != 5 || len(wire["initialized_ticks"].([]any)) != 32 {
 		t.Fatal("wire lost post-state pages")
+	}
+	if wire["effective_fee_num"] != "112" || wire["effective_fee_den"] != "1000000" {
+		t.Fatal("wire lost effective fee")
 	}
 	// A missing initialized tick is retained in the bitmap, not cleared to make
 	// quotes appear complete beyond the fetched nearest ticks.

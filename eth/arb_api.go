@@ -337,6 +337,10 @@ func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 			wire["bitmap_words"], wire["initialized_ticks"] = words, ticks
 			wire["coverage_min_tick"], wire["coverage_max_tick"] = s.CoverageMinTick, s.CoverageMaxTick
 		}
+		if s.EffectiveFeeResolved && s.EffectiveFeeNum != "" && s.EffectiveFeeDen != "" {
+			wire["effective_fee_num"] = s.EffectiveFeeNum
+			wire["effective_fee_den"] = s.EffectiveFeeDen
+		}
 		return wire
 	default: // "v2"
 		return map[string]any{

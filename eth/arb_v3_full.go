@@ -21,7 +21,30 @@ func (c *poolCaller) ReadV3Full(pool common.Address, expectedSpacing int32) (arb
 	}
 	snap := arb.PoolSnapshot{Locator: pool.Hex(), Kind: "v3", SqrtPriceX96: head.SqrtPriceX96.String(),
 		Tick: strconv.FormatInt(int64(head.Tick), 10), Liquidity: head.Liquidity.String()}
-	return readV3Window(snap, expectedSpacing, func(data []byte) ([]byte, error) { return c.staticCall(pool, data) })
+	return readV3Full(snap, expectedSpacing, func(data []byte) ([]byte, error) { return c.staticCall(pool, data) })
+}
+
+// readV3Full binds the pool's mutable fee() value to the same parent-state
+// view as slot0, liquidity, bitmap and ticks. A marker pool without this value
+// is intentionally not quotable by the Rust side.
+func readV3Full(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte) ([]byte, error)) (arb.PoolSnapshot, error) {
+	snap, err := readV3Window(snap, expectedSpacing, call)
+	if err != nil {
+		return arb.PoolSnapshot{}, err
+	}
+	raw, err := call(v3ViewCall("fee()", nil))
+	if err != nil {
+		return arb.PoolSnapshot{}, err
+	}
+	fee, err := arb.DecodeUint256(raw)
+	if err != nil || !fee.IsUint64() || fee.Uint64() >= 1_000_000 {
+		return arb.PoolSnapshot{}, errors.New("arb: v3 fee invalid")
+	}
+	snap.EffectiveFeeNum = strconv.FormatUint(fee.Uint64(), 10)
+	snap.EffectiveFeeDen = "1000000"
+	snap.EffectiveFeeResolved = true
+	snap.EffectiveFeeStatus = "resolved"
+	return snap, nil
 }
 
 func v3ViewCall(signature string, arg *int64) []byte {
