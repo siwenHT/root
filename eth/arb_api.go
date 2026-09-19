@@ -323,13 +323,20 @@ func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 		}
 		return wire
 	case "v3":
-		return map[string]any{
-			"locator":        s.Locator,
-			"kind":           "v3",
-			"sqrt_price_x96": s.SqrtPriceX96,
-			"tick":           s.Tick,
-			"liquidity":      s.Liquidity,
+		wire := map[string]any{"locator": s.Locator, "kind": "v3", "sqrt_price_x96": s.SqrtPriceX96, "tick": s.Tick, "liquidity": s.Liquidity}
+		if len(s.BitmapWords) > 0 {
+			words := make([]any, 0, len(s.BitmapWords))
+			for _, w := range s.BitmapWords {
+				words = append(words, map[string]any{"index": w.Index, "value": w.Value})
+			}
+			ticks := make([]any, 0, len(s.InitializedTicks))
+			for _, t := range s.InitializedTicks {
+				ticks = append(ticks, map[string]any{"index": t.Index, "liquidity_gross": t.LiquidityGross, "liquidity_net": t.LiquidityNet})
+			}
+			wire["bitmap_words"], wire["initialized_ticks"] = words, ticks
+			wire["coverage_min_tick"], wire["coverage_max_tick"] = s.CoverageMinTick, s.CoverageMaxTick
 		}
+		return wire
 	default: // "v2"
 		return map[string]any{
 			"locator":  s.Locator,

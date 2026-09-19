@@ -521,7 +521,7 @@ func validPoolRead(pr *PoolReadSpec) bool {
 	case "v2":
 		return isAddressWire(pr.Token0) && isAddressWire(pr.Token1)
 	case "v3":
-		return pr.Token0 == "" && pr.Token1 == ""
+		return pr.Token0 == "" && pr.Token1 == "" && pr.TickSpacing >= 0 && pr.TickSpacing <= 16383
 	case "infinity_cl":
 		return isAddressWire(pr.Manager) && isHash32Wire(pr.PoolKey) && isAddressWire(pr.Hook) &&
 			isAddressWire(pr.Token0) && isAddressWire(pr.Token1) && pr.Locator == pr.Manager && pr.TickSpacing > 0 && pr.TickSpacing <= 16383
@@ -566,6 +566,9 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		pr := &args.PoolReads[i]
 		d.FieldBytes([]byte(pr.Locator)).FieldBytes([]byte(pr.Kind)).
 			FieldBytes([]byte(pr.Token0)).FieldBytes([]byte(pr.Token1))
+		if pr.Kind == "v3" && pr.TickSpacing > 0 {
+			d.FieldBytes([]byte(strconv.FormatInt(int64(pr.TickSpacing), 10)))
+		}
 		if pr.Kind == "infinity_cl" {
 			d.FieldBytes([]byte(pr.Manager)).FieldBytes([]byte(pr.PoolKey)).FieldBytes([]byte(pr.Hook)).FieldBytes([]byte(strconv.FormatInt(int64(pr.TickSpacing), 10)))
 		}
@@ -617,17 +620,20 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 					InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),
 					EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus})
 			case "v3":
-				s, rerr := caller.ReadV3Head(pool)
-				if rerr != nil {
-					return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
+				if pr.TickSpacing > 0 {
+					s, rerr := caller.ReadV3Full(pool, pr.TickSpacing)
+					if rerr != nil {
+						return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
+					}
+					s.Locator = pr.Locator
+					snaps = append(snaps, s)
+				} else {
+					s, rerr := caller.ReadV3Head(pool)
+					if rerr != nil {
+						return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
+					}
+					snaps = append(snaps, arb.PoolSnapshot{Locator: pr.Locator, Kind: "v3", SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String()})
 				}
-				snaps = append(snaps, arb.PoolSnapshot{
-					Locator:      pr.Locator,
-					Kind:         "v3",
-					SqrtPriceX96: s.SqrtPriceX96.String(),
-					Tick:         strconv.FormatInt(int64(s.Tick), 10),
-					Liquidity:    s.Liquidity.String(),
-				})
 			default: // "v2" (validPoolRead guaranteed kind ∈ {v2,v3} and v2 has tokens)
 				s, rerr := caller.ReadV2(pool, common.HexToAddress(pr.Token0), common.HexToAddress(pr.Token1))
 				if rerr != nil {
