@@ -110,16 +110,32 @@ func readV3Window(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte
 		if err != nil {
 			return arb.PoolSnapshot{}, err
 		}
-		if len(raw) != 256 || new(big.Int).SetBytes(raw[224:256]).Cmp(big.NewInt(1)) != 0 {
-			return arb.PoolSnapshot{}, errors.New("arb: v3 tick record invalid")
-		}
-		ti, err := arb.DecodeInfinityTickInfo(raw)
-		if err != nil || ti.LiquidityGross.Sign() == 0 {
-			return arb.PoolSnapshot{}, errors.New("arb: v3 tick liquidity invalid")
+		ti, err := decodeV3TickRecord(raw)
+		if err != nil {
+			return arb.PoolSnapshot{}, err
 		}
 		snap.InitializedTicks = append(snap.InitializedTicks, arb.InfinityTick{Index: strconv.FormatInt(index, 10), LiquidityGross: ti.LiquidityGross.String(), LiquidityNet: ti.LiquidityNet.String()})
 	}
 	snap.CoverageMinTick = strconv.FormatInt(first*256*step, 10)
 	snap.CoverageMaxTick = strconv.FormatInt((last+1)*256*step-1, 10)
 	return snap, nil
+}
+
+// decodeV3TickRecord accepts the standard V3 Tick.Info tuple (8 ABI words) and
+// the verified extended implementation used by 0x767f...65b4 (10 ABI words).
+// Both layouts put liquidityGross and liquidityNet in the first two words and a
+// canonical initialized flag in the final word. Other widths are rejected so a
+// different ABI cannot be mistaken for V3 state.
+func decodeV3TickRecord(raw []byte) (*arb.InfinityTickInfo, error) {
+	if len(raw) != 8*32 && len(raw) != 10*32 {
+		return nil, errors.New("arb: v3 tick record invalid")
+	}
+	if new(big.Int).SetBytes(raw[len(raw)-32:]).Cmp(big.NewInt(1)) != 0 {
+		return nil, errors.New("arb: v3 tick record invalid")
+	}
+	ti, err := arb.DecodeInfinityTickInfo(raw)
+	if err != nil || ti.LiquidityGross.Sign() == 0 {
+		return nil, errors.New("arb: v3 tick liquidity invalid")
+	}
+	return ti, nil
 }

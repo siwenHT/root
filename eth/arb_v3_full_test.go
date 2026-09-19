@@ -65,3 +65,29 @@ func TestV3PostWindowRejectsMissingPagesAndWrongSpacing(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeV3TickRecordAcceptsOnlyVerifiedLayouts(t *testing.T) {
+	standard := make([]byte, 8*32)
+	copy(standard[:32], w32(big.NewInt(100)))
+	standard[len(standard)-1] = 1
+	if _, err := decodeV3TickRecord(standard); err != nil {
+		t.Fatalf("standard V3 tick rejected: %v", err)
+	}
+
+	extended := make([]byte, 10*32)
+	copy(extended[:32], w32(big.NewInt(100)))
+	copy(extended[2*32:9*32], bytes.Repeat([]byte{0xab}, 7*32))
+	extended[len(extended)-1] = 1
+	if _, err := decodeV3TickRecord(extended); err != nil {
+		t.Fatalf("extended V3 tick rejected: %v", err)
+	}
+
+	invalidFlag := append([]byte(nil), extended...)
+	invalidFlag[len(invalidFlag)-1] = 2
+	if _, err := decodeV3TickRecord(invalidFlag); err == nil {
+		t.Fatal("accepted non-canonical initialized flag")
+	}
+	if _, err := decodeV3TickRecord(make([]byte, 9*32)); err == nil {
+		t.Fatal("accepted unverified V3 tick width")
+	}
+}
