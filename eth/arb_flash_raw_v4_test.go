@@ -70,7 +70,9 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	coin := func(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), ether) }
 	price := big.NewInt(50000000)
 	gdb, db := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
-	genesis := &core.Genesis{Config: params.TestChainConfig, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{
+	// Cancun is live on BSC and the executor is compiled for it; the fixture
+	// bytecode uses PUSH0/MCOPY, so the synthetic chain must enable it too.
+	genesis := &core.Genesis{Config: params.MergedTestChainConfig, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{
 		operator: {Balance: coin(1000)}, authAddress: {Code: common.FromHex(fixture.Auth), Balance: new(big.Int)},
 	}}
 	gb := genesis.MustCommit(gdb, triedb.NewDatabase(gdb, triedb.HashDefaults))
