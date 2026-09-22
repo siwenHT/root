@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/arb"
@@ -88,7 +90,15 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTx(setup) })
+	tracer := &tracing.Hooks{
+		OnEnter: func(depth int, typ byte, from, to common.Address, input []byte, gas uint64, value *big.Int) {
+			t.Logf("DEBUG enter d=%d typ=%x from=%s to=%s gas=%d value=%v", depth, typ, from, to, gas, value)
+		},
+		OnExit: func(depth int, output []byte, gasUsed uint64, err error, reverted bool) {
+			t.Logf("DEBUG exit d=%d gasUsed=%d err=%v reverted=%v out=%x", depth, gasUsed, err, reverted, output)
+		},
+	}
+	chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTxWithVMConfig(setup, vm.Config{Debug: true, Tracer: tracer}) })
 	setupReceipt := receipts[0][0]
 	if setupReceipt.Status != 1 {
 		t.Fatal("fixture deployment reverted")
