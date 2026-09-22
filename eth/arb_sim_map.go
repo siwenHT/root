@@ -12,6 +12,7 @@ import (
 	"errors"
 	"math/big"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -582,71 +583,49 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		}
 		defer release()
 		// Read pools on the post state via the same budgeted+StaticCall path used at
-		// head (newPoolCaller over the borrowed post base). A read failure aborts the
-		// WHOLE job with an error — never a partial or fabricated snapshot (§381).
-		caller := api.svc.eth.newPoolCaller(base, header, budget)
-		snaps := make([]arb.PoolSnapshot, 0, len(args.PoolReads))
-		for i := range args.PoolReads {
-			pr := &args.PoolReads[i]
-			pool := common.HexToAddress(pr.Locator)
-			switch pr.Kind {
-			case "infinity_cl":
-				manager := common.HexToAddress(pr.Manager)
-				poolID := common.HexToHash(pr.PoolKey)
-				s, rerr := caller.ReadInfinityCLWithSpacing(manager, poolID, int64(pr.TickSpacing))
-				if rerr != nil {
-					return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
-				}
-				words := make([]arb.InfinityBitmapWord, 0, len(s.BitmapWords))
-				for _, w := range s.BitmapWords {
-					words = append(words, arb.InfinityBitmapWord{Index: strconv.FormatInt(int64(w.Index), 10), Value: w.Value.String()})
-				}
-				ticks := make([]arb.InfinityTick, 0, len(s.InitializedTicks))
-				for _, t := range s.InitializedTicks {
-					ticks = append(ticks, arb.InfinityTick{Index: strconv.FormatInt(int64(t.Index), 10), LiquidityGross: t.LiquidityGross.String(), LiquidityNet: t.LiquidityNet.String()})
-				}
-				feeNum, feeDen := "", ""
-				if s.EffectiveFeeResolved {
-					feeNum = strconv.FormatUint(uint64(s.EffectiveFeeNum), 10)
-					feeDen = strconv.FormatUint(uint64(s.EffectiveFeeDen), 10)
-				} else {
-					// A dynamic PoolKey's slot0.lpFee is not an amount-specific
-					// quote. Keep the pair absent on the wire and leave an explicit
-					// diagnostic in the node log instead of emitting "0".
-					log.Debug("arb infinity effective fee unresolved", "manager", s.Manager.Hex(), "pool", s.PoolKey.Hex(), "status", s.EffectiveFeeStatus)
-				}
-				snaps = append(snaps, arb.PoolSnapshot{Locator: pr.Locator, Kind: "infinity_cl", Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
-					SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String(), BitmapWords: words,
-					InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),
-					EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus})
-			case "v3":
-				if pr.TickSpacing > 0 {
-					s, rerr := caller.ReadV3Full(pool, pr.TickSpacing)
+		// head (newPoolCaller over the borrowed post base). Each worker owns a
+		// private state copy and budget, so the batch is split across a bounded
+		// number of readers instead of serializing every V3 deep read (5 bitmap
+		// words + up to 32 tick records each). A read failure still aborts the
+		// WHOLE job with an error -- never a partial or fabricated snapshot.
+		n := len(args.PoolReads)
+		snaps := make([]arb.PoolSnapshot, n)
+		workers := postPoolReadWorkers
+		if workers > n {
+			workers = n
+		}
+		if workers < 1 {
+			workers = 1
+		}
+		callers := make([]*poolCaller, workers)
+		budgets := make([]*arb.ReadBudget, workers)
+		for w := 0; w < workers; w++ {
+			budgets[w] = budget.Fork()
+			callers[w] = api.svc.eth.newPoolCaller(base, header, budgets[w])
+		}
+		errs := make([]error, workers)
+		var wg sync.WaitGroup
+		for w := 0; w < workers; w++ {
+			lo := w * n / workers
+			hi := (w + 1) * n / workers
+			wg.Add(1)
+			go func(w, lo, hi int) {
+				defer wg.Done()
+				for i := lo; i < hi; i++ {
+					s, rerr := readPostPool(callers[w], &args.PoolReads[i])
 					if rerr != nil {
-						return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
+						errs[w] = rerr
+						return
 					}
-					s.Locator = pr.Locator
-					snaps = append(snaps, s)
-				} else {
-					s, rerr := caller.ReadV3Head(pool)
-					if rerr != nil {
-						return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
-					}
-					snaps = append(snaps, arb.PoolSnapshot{Locator: pr.Locator, Kind: "v3", SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String()})
+					snaps[i] = s
 				}
-			default: // "v2" (validPoolRead guaranteed kind ∈ {v2,v3} and v2 has tokens)
-				s, rerr := caller.ReadV2(pool, common.HexToAddress(pr.Token0), common.HexToAddress(pr.Token1))
-				if rerr != nil {
-					return &arb.JobOutcome{Kind: "post_pool", ErrCode: rerr.Error()}, false
-				}
-				snaps = append(snaps, arb.PoolSnapshot{
-					Locator:  pr.Locator,
-					Kind:     "v2",
-					Reserve0: s.Reserve0.String(),
-					Reserve1: s.Reserve1.String(),
-					Balance0: s.Balance0.String(),
-					Balance1: s.Balance1.String(),
-				})
+			}(w, lo, hi)
+		}
+		wg.Wait()
+		for w := 0; w < workers; w++ {
+			budget.Absorb(budgets[w])
+			if errs[w] != nil {
+				return &arb.JobOutcome{Kind: "post_pool", ErrCode: errs[w].Error()}, false
 			}
 		}
 		return &arb.JobOutcome{
@@ -662,4 +641,73 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		return nil, err
 	}
 	return &JobIDResult{JobID: jobID}, nil
+}
+
+// postPoolReadWorkers bounds how many pool reads run concurrently inside one
+// arb_getPostPoolState job. The pending path reads ~40 pools (10-12 of them V3
+// deep reads) per prepare, which dominated candidate build latency when serial.
+const postPoolReadWorkers = 4
+
+// readPostPool reads one declared pool on a caller's private state copy. It
+// mirrors the serial path exactly; only the execution order changes.
+func readPostPool(caller *poolCaller, pr *PoolReadSpec) (arb.PoolSnapshot, error) {
+	pool := common.HexToAddress(pr.Locator)
+	switch pr.Kind {
+	case "infinity_cl":
+		manager := common.HexToAddress(pr.Manager)
+		poolID := common.HexToHash(pr.PoolKey)
+		s, rerr := caller.ReadInfinityCLWithSpacing(manager, poolID, int64(pr.TickSpacing))
+		if rerr != nil {
+			return arb.PoolSnapshot{}, rerr
+		}
+		words := make([]arb.InfinityBitmapWord, 0, len(s.BitmapWords))
+		for _, w := range s.BitmapWords {
+			words = append(words, arb.InfinityBitmapWord{Index: strconv.FormatInt(int64(w.Index), 10), Value: w.Value.String()})
+		}
+		ticks := make([]arb.InfinityTick, 0, len(s.InitializedTicks))
+		for _, t := range s.InitializedTicks {
+			ticks = append(ticks, arb.InfinityTick{Index: strconv.FormatInt(int64(t.Index), 10), LiquidityGross: t.LiquidityGross.String(), LiquidityNet: t.LiquidityNet.String()})
+		}
+		feeNum, feeDen := "", ""
+		if s.EffectiveFeeResolved {
+			feeNum = strconv.FormatUint(uint64(s.EffectiveFeeNum), 10)
+			feeDen = strconv.FormatUint(uint64(s.EffectiveFeeDen), 10)
+		} else {
+			// A dynamic PoolKey's slot0.lpFee is not an amount-specific quote.
+			// Keep the pair absent on the wire and leave an explicit diagnostic
+			// in the node log instead of emitting "0".
+			log.Debug("arb infinity effective fee unresolved", "manager", s.Manager.Hex(), "pool", s.PoolKey.Hex(), "status", s.EffectiveFeeStatus)
+		}
+		return arb.PoolSnapshot{Locator: pr.Locator, Kind: "infinity_cl", Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
+			SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String(), BitmapWords: words,
+			InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),
+			EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus}, nil
+	case "v3":
+		if pr.TickSpacing > 0 {
+			s, rerr := caller.ReadV3Full(pool, pr.TickSpacing)
+			if rerr != nil {
+				return arb.PoolSnapshot{}, rerr
+			}
+			s.Locator = pr.Locator
+			return s, nil
+		}
+		s, rerr := caller.ReadV3Head(pool)
+		if rerr != nil {
+			return arb.PoolSnapshot{}, rerr
+		}
+		return arb.PoolSnapshot{Locator: pr.Locator, Kind: "v3", SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String()}, nil
+	default: // "v2" (validPoolRead guaranteed kind is v2 or v3, and v2 has tokens)
+		s, rerr := caller.ReadV2(pool, common.HexToAddress(pr.Token0), common.HexToAddress(pr.Token1))
+		if rerr != nil {
+			return arb.PoolSnapshot{}, rerr
+		}
+		return arb.PoolSnapshot{
+			Locator:  pr.Locator,
+			Kind:     "v2",
+			Reserve0: s.Reserve0.String(),
+			Reserve1: s.Reserve1.String(),
+			Balance0: s.Balance0.String(),
+			Balance1: s.Balance1.String(),
+		}, nil
+	}
 }

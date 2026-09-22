@@ -165,3 +165,27 @@ func (b *ReadBudget) ReadsOfKind(k ReadKind) uint64 {
 	}
 	return 0
 }
+
+// Fork returns an independent budget with the same cap and deadline. A job that
+// splits its reads across concurrent workers gives each worker its own budget
+// (ReadBudget is not safe for concurrent use) and folds the results back with
+// Absorb. Splitting does not change the total work, so the aggregate read total
+// stays comparable to the serial path.
+func (b *ReadBudget) Fork() *ReadBudget {
+	return &ReadBudget{clock: b.clock, maxReads: b.maxReads, deadline: b.deadline}
+}
+
+// Absorb folds a fork's counters and terminal state into the receiver. The
+// receiver must not be used concurrently with this call.
+func (b *ReadBudget) Absorb(child *ReadBudget) {
+	b.reads += child.reads
+	for i := range b.perKind {
+		b.perKind[i] += child.perKind[i]
+	}
+	if child.exceeded {
+		b.exceeded = true
+	}
+	if child.expired {
+		b.expired = true
+	}
+}
