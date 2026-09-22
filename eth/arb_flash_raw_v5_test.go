@@ -38,10 +38,9 @@ func TestExecutorV5ActualSignedMultiAssetBundle(t *testing.T) {
     authAddress := common.HexToAddress("0x8b83F636C02FfBbE4811eF0d547A8518026d59e4")
     ether := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil); coin := func(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), ether) }; price := big.NewInt(50000000)
     gdb, db := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
-    genesisConfig := *params.TestChainConfig
-    genesisConfig.ShanghaiTime = new(uint64)
-    genesisConfig.CancunTime = new(uint64)
-    genesisConfig.BlobScheduleConfig = params.MergedTestChainConfig.BlobScheduleConfig
+    genesisConfig := *params.MergedTestChainConfig
+    genesisConfig.PragueTime = nil
+    genesisConfig.OsakaTime = nil
     genesis := &core.Genesis{Config: &genesisConfig, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{operator: {Balance: coin(1000)}, authAddress: {Code: common.FromHex(fixture.Auth)}}}
     gb := genesis.MustCommit(gdb, triedb.NewDatabase(gdb, triedb.HashDefaults)); signer := types.LatestSigner(genesis.Config)
     data := append(common.FromHex(fixture.Init), common.LeftPadBytes(operator.Bytes(), 32)...); data = append(data, common.LeftPadBytes(recipient.Bytes(), 32)...)
