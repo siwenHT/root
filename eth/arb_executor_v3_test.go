@@ -110,24 +110,78 @@ func TestExecutorV3ReceiptAndEnvelope(t *testing.T) {
 	}
 }
 
-func TestExecutorV5MultiAssetEnvelopeAndLedgerPaymentWord(t *testing.T) {
-	data := make([]byte, 4+19*32)
-	copy(data[:4], executeMultiAssetSelectorV5)
-	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32:4+(i+1)*32]) }
-	word(0, 32) // outer tuple offset
-	word(10, 18*32) // financingAdapterData offset relative to tuple
-	word(16, 300000) // gasLimit
-	word(13, 12345) // builder recipient must not be interpreted as payment
-	word(14, 7) // builder payment including the outer tuple offset
+func TestExecutorV5MultiAssetEnvelopeAndLedgerSharePayment(t *testing.T) {
+	data := make([]byte, 4+17*32)
+	copy(data[:4], executeMultiSelectorShare)
+	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32 : 4+(i+1)*32]) }
+	word(0, 32)      // outer tuple offset
+	word(10, 17*32)  // financingAdapterData offset relative to tuple
+	word(15, 300000) // gasLimit
+	word(12, 12345)  // builder recipient must not be interpreted as payment
+	word(13, 7000)   // builderShareBps: payment is gross*share/10000, not a fixed wei value
 	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: common.HexToAddress("0xbb")}
-	if err := validateExecutorEnvelope(&mt.executor, data, 300000, mt); err != nil { t.Fatal(err) }
+	if err := validateExecutorEnvelope(&mt.executor, data, 300000, mt); err != nil {
+		t.Fatal(err)
+	}
+	// gross 6000, share 7000 bps -> payment 4200, retained 1800.
 	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
-		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: common.LeftPadBytes(big.NewInt(8000).Bytes(), 96)},
-		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: common.LeftPadBytes(big.NewInt(2000).Bytes(), 128)},
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: words(6000, 4200, 1800)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(2000, 8000, 3800, 3800)},
 	}}
-	// Build four independent 32-byte ledger words for the accounting equation.
-	receipt.Logs[0].Data = append(append(common.LeftPadBytes(big.NewInt(6000).Bytes(), 32), common.LeftPadBytes(big.NewInt(7).Bytes(), 32)...), common.LeftPadBytes(big.NewInt(5993).Bytes(), 32)...)
-	receipt.Logs[1].Data = append(append(append(common.LeftPadBytes(big.NewInt(2000).Bytes(), 32), common.LeftPadBytes(big.NewInt(8000).Bytes(), 32)...), common.LeftPadBytes(big.NewInt(7993).Bytes(), 32)...), common.LeftPadBytes(big.NewInt(7993).Bytes(), 32)...)
 	p, err := executorLedgerV3(receipt, data, mt)
-	if err != nil || p["executor_revision"] != executorRevisionMultiAsset { t.Fatalf("multi asset ledger %v %v", p, err) }
+	if err != nil || p["executor_revision"] != executorRevisionMultiAsset {
+		t.Fatalf("multi asset ledger %v %v", p, err)
+	}
+	if p["builder_payment"] != "4200" || p["retained_t3"] != "3800" {
+		t.Fatalf("share payment mismatch %v", p)
+	}
+	// A payment word above the real share-derived amount must be rejected.
+	bad := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: words(6000, 4201, 1800)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(2000, 8000, 3800, 3800)},
+	}}
+	if _, err := executorLedgerV3(bad, data, mt); err == nil {
+		t.Fatal("over-reported builder payment accepted")
+	}
+	// Share above 100% is rejected before any receipt work.
+	word(13, 10001)
+	if err := validateExecutorEnvelope(&mt.executor, data, 300000, mt); err == nil {
+		t.Fatal("builder share above 100% accepted")
+	}
+}
+
+func TestExecutorV5LegacyShareEnvelopeAndLedger(t *testing.T) {
+	data := make([]byte, 4+13*32)
+	copy(data[:4], executeSelectorV3Share)
+	base := common.HexToAddress("0xbb")
+	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32 : 4+(i+1)*32]) }
+	word(0, 32)     // outer tuple offset
+	word(5, 0xbb)   // baseToken word
+	word(9, 6000)   // builderShareBps
+	word(11, 1400000)
+	word(12, 12*32) // legs offset after a 12-word tuple head
+	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: base}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1400000, mt); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1400001, mt); err == nil {
+		t.Fatal("gas mismatch accepted")
+	}
+	// gross 10000, share 6000 bps -> payment 6000, retained 4000.
+	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: words(10000, 6000, 4000)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(1000, 11000, 5000, 5000)},
+	}}
+	p, err := executorLedgerV3(receipt, data, mt)
+	if err != nil || p["executor_revision"] != executorRevisionV3 || p["builder_payment"] != "6000" {
+		t.Fatalf("legacy share ledger %v %v", p, err)
+	}
+}
+
+func words(ns ...int64) []byte {
+	var b []byte
+	for _, n := range ns {
+		b = append(b, common.LeftPadBytes(big.NewInt(n).Bytes(), 32)...)
+	}
+	return b
 }

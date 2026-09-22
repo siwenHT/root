@@ -25,7 +25,7 @@ type flashLegV5 struct { AdapterId uint16; PoolOrManager common.Address; PoolKey
 type flashPlanV5 struct {
     OpportunityId [32]byte; TargetTxHash [32]byte; RequiredParentHash [32]byte; TargetBlockNumber uint64
     FinancingPool common.Address; BorrowToken common.Address; RepayToken common.Address; BorrowAmount *big.Int; RepayAmount *big.Int
-    FinancingAdapterData []byte; MinWbnbProfitBeforeGas *big.Int; MaxGasPriceWei *big.Int; BuilderPaymentRecipient common.Address; BuilderPaymentWei *big.Int
+    FinancingAdapterData []byte; MaxGasPriceWei *big.Int; BuilderPaymentRecipient common.Address; BuilderShareBps uint16
     ExpectedRouteStateDigest [32]byte; GasLimit *big.Int; TradeLegs []flashLegV5; SettlementLegs []flashLegV5
 }
 
@@ -52,7 +52,7 @@ func TestExecutorV5ActualSignedMultiAssetBundle(t *testing.T) {
     target,err:=types.SignTx(types.NewTransaction(1,fixtureAddress,new(big.Int),200000,price,crypto.Keccak256([]byte("makeProfitable()"))[:4]),signer,key);if err!=nil{t.Fatal(err)}
     fee:=append(common.LeftPadBytes(big.NewInt(997).Bytes(),32),common.LeftPadBytes(big.NewInt(1000).Bytes(),32)...); leg:=func(pool,in,out common.Address)flashLegV5{return flashLegV5{AdapterId:1,PoolOrManager:pool,TokenIn:in,TokenOut:out,MinAmountOut:new(big.Int),SqrtPriceLimitX96:new(big.Int),AdapterData:fee}}
     borrow:=coin(1); numerator:=new(big.Int).Mul(coin(100),borrow); numerator.Mul(numerator,big.NewInt(1000)); den:=new(big.Int).Mul(new(big.Int).Sub(coin(100),borrow),big.NewInt(997)); repay:=new(big.Int).Quo(numerator,den); if new(big.Int).Mod(numerator,den).Sign()!=0 {repay.Add(repay,big.NewInt(1))}
-    plan:=flashPlanV5{OpportunityId:common.HexToHash("0x01"),TargetTxHash:target.Hash(),RequiredParentHash:parent.Hash(),TargetBlockNumber:parent.Number.Uint64()+1,FinancingPool:financing,BorrowToken:doge,RepayToken:usdt,BorrowAmount:borrow,RepayAmount:repay,FinancingAdapterData:fee,MinWbnbProfitBeforeGas:big.NewInt(0),MaxGasPriceWei:price,BuilderPaymentRecipient:recipient,BuilderPaymentWei:big.NewInt(10000000000000000),ExpectedRouteStateDigest:common.Hash{},GasLimit:big.NewInt(1400000),TradeLegs:[]flashLegV5{leg(trade,doge,usdt)},SettlementLegs:[]flashLegV5{leg(settlement,usdt,wbnb)}}
+    plan:=flashPlanV5{OpportunityId:common.HexToHash("0x01"),TargetTxHash:target.Hash(),RequiredParentHash:parent.Hash(),TargetBlockNumber:parent.Number.Uint64()+1,FinancingPool:financing,BorrowToken:doge,RepayToken:usdt,BorrowAmount:borrow,RepayAmount:repay,FinancingAdapterData:fee,MaxGasPriceWei:price,BuilderPaymentRecipient:recipient,BuilderShareBps:8200,ExpectedRouteStateDigest:common.Hash{},GasLimit:big.NewInt(1400000),TradeLegs:[]flashLegV5{leg(trade,doge,usdt)},SettlementLegs:[]flashLegV5{leg(settlement,usdt,wbnb)}}
     calldata,err:=contractABI.Pack("executeMultiAsset",plan);if err!=nil{t.Fatal(err)};ours,err:=types.SignTx(types.NewTransaction(2,proxy,new(big.Int),1400000,price,calldata),signer,key);if err!=nil{t.Fatal(err)}
     txs:=[]*types.Transaction{target,ours}
     for i,tx:=range txs { raw,e:=tx.MarshalBinary();if e!=nil{t.Fatal(e)};txs[i],e=decodeRaw("0x"+common.Bytes2Hex(raw));if e!=nil{t.Fatal(e)};sender,e:=types.Sender(signer,txs[i]);if e!=nil||sender!=operator{t.Fatal("raw signer mismatch")} }
@@ -60,11 +60,13 @@ func TestExecutorV5ActualSignedMultiAssetBundle(t *testing.T) {
     result,err:=x.ExecutePrefixWithEnv(txs,newReadBudget(5000000,0),env);if err!=nil{t.Fatal(err)};if !result.Completed{t.Fatalf("signed multi-asset bundle failed: %+v",result.Outcomes)}
     ledger,err:=executorLedgerV3(result.Outcomes[1].Receipt,calldata,mt);if err!=nil{t.Fatal(err)};if ledger["executor_revision"]!=executorRevisionMultiAsset{t.Fatal("wrong executor revision")}
     retained,_:=new(big.Int).SetString(ledger["retained_t3"].(string),10);if retained.Cmp(new(big.Int).Mul(new(big.Int).SetUint64(result.Outcomes[1].Receipt.GasUsed),price))<=0{t.Fatal("retained does not cover gas")}
-    if ledger["retained_t0"]!="0" || ledger["owner_sweep"]!=ledger["retained_t3"] || result.PostState.GetBalance(recipient).ToBig().Cmp(plan.BuilderPaymentWei)!=0 {t.Fatal("inventory, owner sweep or builder payment mismatch")}
+    t0,_:=new(big.Int).SetString(ledger["retained_t0"].(string),10);t2,_:=new(big.Int).SetString(ledger["retained_t2"].(string),10)
+    expectedPayment:=new(big.Int).Mul(new(big.Int).Sub(t2,t0),big.NewInt(int64(plan.BuilderShareBps)));expectedPayment.Div(expectedPayment,big.NewInt(10000))
+    if ledger["retained_t0"]!="0" || ledger["owner_sweep"]!=ledger["retained_t3"] || result.PostState.GetBalance(recipient).ToBig().Cmp(expectedPayment)!=0 {t.Fatal("inventory, owner sweep or builder payment mismatch")}
     receipt:=result.Outcomes[1].Receipt;if receipt.EffectiveGasPrice==nil || receipt.EffectiveGasPrice.Cmp(price)!=0{t.Fatal("gas price mismatch")}
     early,_:=types.SignTx(types.NewTransaction(1,proxy,new(big.Int),1400000,price,calldata),signer,key)
     negative,err:=x.ExecuteTargetWithEnv(early,newReadBudget(5000000,0),env);if err!=nil || negative.Class.Status!=arb.StatusReverted{t.Fatal("pre-target negative control did not revert")}
-    plan.BuilderPaymentWei=new(big.Int).Sub(new(big.Int).Add(retained,plan.BuilderPaymentWei),big.NewInt(1))
+    plan.BuilderShareBps=10000
     lowData,err:=contractABI.Pack("executeMultiAsset",plan);if err!=nil{t.Fatal(err)};low,_:=types.SignTx(types.NewTransaction(2,proxy,new(big.Int),1400000,price,lowData),signer,key)
     lowRaw,_:=low.MarshalBinary();low,err=decodeRaw("0x"+common.Bytes2Hex(lowRaw));if err!=nil{t.Fatal(err)}
     resolved,err:=x.resolveBlockEnv(env);if err!=nil{t.Fatal(err)};session:=x.newExecSession(newReadBudget(5000000,0),resolved)

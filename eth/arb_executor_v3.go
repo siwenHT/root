@@ -19,23 +19,50 @@ const executorRevisionMultiAsset = "proxy-multi-asset-v5"
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
 var ledgerTopic = crypto.Keccak256Hash([]byte("ExecutionLedger(uint256,uint256,uint256,uint256)"))
 var executedTopic = crypto.Keccak256Hash([]byte("BackrunExecuted(bytes32,bytes32,uint256,uint256,uint256)"))
-var executeSelectorV3 = []byte{0x75, 0x99, 0xbc, 0xfb}
-var executeMultiAssetSelectorV5 = []byte{0xb8, 0x8e, 0x2b, 0x94}
+// Canonical dispatch heads of our own executor. The `...Share` selectors are the
+// dynamic builder-share ABI now deployed on chain; the `...Fixed` selectors are
+// the superseded fixed-payment ABI, kept so pre-upgrade receipts still decode.
+var (
+	executeSelectorV3Fixed    = []byte{0x75, 0x99, 0xbc, 0xfb}
+	executeSelectorV3Share    = []byte{0xbc, 0x20, 0xa7, 0x70}
+	executeMultiSelectorFixed = []byte{0xb8, 0x8e, 0x2b, 0x94}
+	executeMultiSelectorShare = []byte{0x95, 0xbc, 0xf8, 0xd2}
+)
+
+// executeLayout pins the canonical ABI head we accept. Indexes address the
+// argument area as data[4+i*32:], so word 0 is the outer dynamic tuple offset.
+// `shareWord` holds builderShareBps (dynamic payment) and `paymentWord` holds a
+// fixed wei payment; exactly one of the two is set.
+type executeLayout struct {
+	minWords      int
+	gasWord       int
+	offsetWord    int
+	offsetValue   int64
+	baseTokenWord int
+	shareWord     int
+	paymentWord   int
+}
+
+func executeLayoutFor(data []byte) (executeLayout, string, bool) {
+	if len(data) < 4 {
+		return executeLayout{}, "", false
+	}
+	switch {
+	case bytes.Equal(data[:4], executeSelectorV3Fixed):
+		return executeLayout{minWords: 15, gasWord: 12, offsetWord: 13, offsetValue: 13 * 32, baseTokenWord: 5, shareWord: -1, paymentWord: 10}, executorRevisionV3, true
+	case bytes.Equal(data[:4], executeSelectorV3Share):
+		return executeLayout{minWords: 13, gasWord: 11, offsetWord: 12, offsetValue: 12 * 32, baseTokenWord: 5, shareWord: 9, paymentWord: -1}, executorRevisionV3, true
+	case bytes.Equal(data[:4], executeMultiSelectorFixed):
+		return executeLayout{minWords: 19, gasWord: 16, offsetWord: 10, offsetValue: 18 * 32, baseTokenWord: -1, shareWord: -1, paymentWord: 14}, executorRevisionMultiAsset, true
+	case bytes.Equal(data[:4], executeMultiSelectorShare):
+		return executeLayout{minWords: 17, gasWord: 15, offsetWord: 10, offsetValue: 17 * 32, baseTokenWord: -1, shareWord: 13, paymentWord: -1}, executorRevisionMultiAsset, true
+	}
+	return executeLayout{}, "", false
+}
 
 func executorRevisionForData(data []byte) (string, bool) {
-	if bytes.Equal(data[:minInt(len(data), 4)], executeSelectorV3) {
-		return executorRevisionV3, true
-	}
-	if bytes.Equal(data[:minInt(len(data), 4)], executeMultiAssetSelectorV5) {
-		return executorRevisionMultiAsset, true
-	}
-	return "", false
-}
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	_, revision, ok := executeLayoutFor(data)
+	return revision, ok
 }
 
 // Parse only our canonical ABI head. EVM execution validates the complete route.
@@ -44,31 +71,21 @@ func validateExecutorEnvelope(to *common.Address, data []byte, gas uint64, mt me
 	if !mt.measure || to == nil || *to != mt.executor || gas == 0 || len(data) < 4 {
 		return errExecutorEvidence
 	}
-	revision, ok := executorRevisionForData(data)
-	if !ok {
-		return errExecutorEvidence
-	}
-	if revision == executorRevisionV3 && len(data) < 4+15*32 {
-		return errExecutorEvidence
-	}
-	if revision == executorRevisionMultiAsset && len(data) < 4+19*32 {
+	layout, _, ok := executeLayoutFor(data)
+	if !ok || len(data) < 4+layout.minWords*32 {
 		return errExecutorEvidence
 	}
 	word := func(i int) *big.Int { return new(big.Int).SetBytes(data[4+i*32 : 4+(i+1)*32]) }
-	gasWord, financingWord := 12, 13
-	if revision == executorRevisionMultiAsset {
-		gasWord, financingWord = 16, 10
-	}
-	if word(0).Cmp(big.NewInt(32)) != 0 || word(gasWord).Cmp(new(big.Int).SetUint64(gas)) != 0 {
+	if word(0).Cmp(big.NewInt(32)) != 0 || word(layout.gasWord).Cmp(new(big.Int).SetUint64(gas)) != 0 {
 		return errExecutorEvidence
 	}
-	if revision == executorRevisionV3 && word(13).Cmp(big.NewInt(13*32)) != 0 {
+	if word(layout.offsetWord).Cmp(big.NewInt(layout.offsetValue)) != 0 {
 		return errExecutorEvidence
 	}
-	if revision == executorRevisionMultiAsset && word(financingWord).Cmp(big.NewInt(18*32)) != 0 {
+	if layout.baseTokenWord >= 0 && word(layout.baseTokenWord).Cmp(new(big.Int).SetBytes(mt.baseToken.Bytes())) != 0 {
 		return errExecutorEvidence
 	}
-	if revision == executorRevisionV3 && word(5).Cmp(new(big.Int).SetBytes(mt.baseToken.Bytes())) != 0 {
+	if layout.shareWord >= 0 && word(layout.shareWord).Cmp(big.NewInt(10_000)) > 0 {
 		return errExecutorEvidence
 	}
 	return nil
@@ -77,7 +94,11 @@ func validateExecutorEnvelope(to *common.Address, data []byte, gas uint64, mt me
 // Read only our successful transaction receipt. Both events must originate from
 // the named proxy, occur once, and agree with the actual calldata audit/payment fields.
 func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (map[string]any, error) {
-	if receipt == nil || receipt.Status != types.ReceiptStatusSuccessful || len(data) < 4+15*32 {
+	if receipt == nil || receipt.Status != types.ReceiptStatusSuccessful {
+		return nil, errExecutorEvidence
+	}
+	layout, revision, ok := executeLayoutFor(data)
+	if !ok || len(data) < 4+layout.minWords*32 {
 		return nil, errExecutorEvidence
 	}
 	var ledger, executed *types.Log
@@ -102,26 +123,32 @@ func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (ma
 		return nil, errExecutorEvidence
 	}
 	word := func(b []byte, i int) *big.Int { return new(big.Int).SetBytes(b[i*32 : (i+1)*32]) }
+	dataWord := func(i int) *big.Int { return new(big.Int).SetBytes(data[4+i*32 : 4+(i+1)*32]) }
 	t0, t2, t3, sweep := word(ledger.Data, 0), word(ledger.Data, 1), word(ledger.Data, 2), word(ledger.Data, 3)
-	revision, ok := executorRevisionForData(data)
-	if !ok {
+	if t2.Cmp(t3) < 0 || t3.Cmp(t0) < 0 || sweep.Cmp(t3) > 0 {
 		return nil, errExecutorEvidence
 	}
-	bidIndex := 10
-	if revision == executorRevisionMultiAsset {
-		bidIndex = 14
+	gross := new(big.Int).Sub(t2, t0)
+	payment := new(big.Int)
+	if layout.shareWord >= 0 {
+		share := dataWord(layout.shareWord)
+		if share.Cmp(big.NewInt(10_000)) > 0 {
+			return nil, errExecutorEvidence
+		}
+		payment.Mul(gross, share).Div(payment, big.NewInt(10_000))
+	} else {
+		payment.Set(dataWord(layout.paymentWord))
 	}
-	bid := new(big.Int).SetBytes(data[4+bidIndex*32 : 4+(bidIndex+1)*32])
-	if t2.Cmp(t3) < 0 || t3.Cmp(t0) < 0 || sweep.Cmp(t3) > 0 || new(big.Int).Sub(t2, t3).Cmp(bid) != 0 {
+	if new(big.Int).Sub(t2, t3).Cmp(payment) != 0 {
 		return nil, errExecutorEvidence
 	}
 	if !bytes.Equal(executed.Topics[1][:], data[4+32:4+64]) || !bytes.Equal(executed.Topics[2][:], data[4+64:4+96]) {
 		return nil, errExecutorEvidence
 	}
-	if word(executed.Data, 0).Cmp(new(big.Int).Sub(t2, t0)) != 0 || word(executed.Data, 1).Cmp(bid) != 0 || word(executed.Data, 2).Cmp(new(big.Int).Sub(t3, t0)) != 0 {
+	if word(executed.Data, 0).Cmp(gross) != 0 || word(executed.Data, 1).Cmp(payment) != 0 || word(executed.Data, 2).Cmp(new(big.Int).Sub(t3, t0)) != 0 {
 		return nil, errExecutorEvidence
 	}
-	return map[string]any{"executor_revision": revision, "measurement": "executor_event_pre_sweep", "executor": strings.ToLower(mt.executor.Hex()), "base_token": strings.ToLower(mt.baseToken.Hex()), "retained_t0": t0.String(), "retained_t2": t2.String(), "retained_t3": t3.String(), "builder_payment": bid.String(), "owner_sweep": sweep.String()}, nil
+	return map[string]any{"executor_revision": revision, "measurement": "executor_event_pre_sweep", "executor": strings.ToLower(mt.executor.Hex()), "base_token": strings.ToLower(mt.baseToken.Hex()), "retained_t0": t0.String(), "retained_t2": t2.String(), "retained_t3": t3.String(), "builder_payment": payment.String(), "owner_sweep": sweep.String()}, nil
 }
 
 func blockEnvDigestV3(e arb.BlockEnv) ([32]byte, error) {

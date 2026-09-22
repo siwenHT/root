@@ -40,10 +40,9 @@ type flashPlanV4 struct {
 	TargetBlockNumber        uint64
 	BaseToken                common.Address
 	AmountIn                 *big.Int
-	MinRetainedBeforeGas     *big.Int
 	MaxGasPriceWei           *big.Int
 	BuilderPaymentRecipient  common.Address
-	BuilderPaymentWei        *big.Int
+	BuilderShareBps          uint16
 	ExpectedRouteStateDigest [32]byte
 	GasLimit                 *big.Int
 	Legs                     []flashLegV4
@@ -124,7 +123,7 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	leg := func(pool, in, out common.Address) flashLegV4 {
 		return flashLegV4{AdapterId: 1, PoolOrManager: pool, TokenIn: in, TokenOut: out, MinAmountOut: new(big.Int), SqrtPriceLimitX96: new(big.Int), AdapterData: fees}
 	}
-	plan := flashPlanV4{OpportunityId: common.HexToHash("0x01"), TargetTxHash: target.Hash(), RequiredParentHash: parent.Hash(), TargetBlockNumber: parent.Number.Uint64() + 1, BaseToken: wbnb, AmountIn: coin(1), MinRetainedBeforeGas: big.NewInt(10000000000000000), MaxGasPriceWei: price, BuilderPaymentRecipient: recipient, BuilderPaymentWei: big.NewInt(10000000000000000), GasLimit: big.NewInt(1400000), Legs: []flashLegV4{leg(p1, wbnb, token), leg(p2, token, wbnb)}}
+	plan := flashPlanV4{OpportunityId: common.HexToHash("0x01"), TargetTxHash: target.Hash(), RequiredParentHash: parent.Hash(), TargetBlockNumber: parent.Number.Uint64() + 1, BaseToken: wbnb, AmountIn: coin(1), MaxGasPriceWei: price, BuilderPaymentRecipient: recipient, BuilderShareBps: 8200, GasLimit: big.NewInt(1400000), Legs: []flashLegV4{leg(p1, wbnb, token), leg(p2, token, wbnb)}}
 	calldata, err := contractABI.Pack("execute", plan)
 	if err != nil {
 		t.Fatal(err)
@@ -166,11 +165,16 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 		t.Fatal("executor unexpectedly needed inventory")
 	}
 	retained, _ := new(big.Int).SetString(ledger["retained_t3"].(string), 10)
+	t0, _ := new(big.Int).SetString(ledger["retained_t0"].(string), 10)
+	t2, _ := new(big.Int).SetString(ledger["retained_t2"].(string), 10)
+	gross := new(big.Int).Sub(t2, t0)
+	expectedPayment := new(big.Int).Mul(gross, big.NewInt(int64(plan.BuilderShareBps)))
+	expectedPayment.Div(expectedPayment, big.NewInt(10000))
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), price)
 	if retained.Cmp(gasCost) <= 0 {
 		t.Fatal("successful bundle did not cover actual receipt gas")
 	}
-	if result.PostState.GetBalance(recipient).ToBig().Cmp(plan.BuilderPaymentWei) != 0 {
+	if result.PostState.GetBalance(recipient).ToBig().Cmp(expectedPayment) != 0 {
 		t.Fatal("builder payment mismatch")
 	}
 	if receipt.EffectiveGasPrice == nil || receipt.EffectiveGasPrice.Cmp(price) != 0 {
@@ -187,10 +191,9 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	if err != nil || noTarget.Class.Status != arb.StatusReverted {
 		t.Fatalf("pre-target route must revert: %+v %v", noTarget, err)
 	}
-	// Positive retained value below gas cost must still revert the signed raw,
-	// including the already-attempted builder transfer.
-	plan.MinRetainedBeforeGas = new(big.Int)
-	plan.BuilderPaymentWei = new(big.Int).Sub(new(big.Int).Add(retained, plan.BuilderPaymentWei), big.NewInt(1000000000000))
+	// Paying out the whole gross leaves nothing for gas, so the gas floor must
+	// revert the signed raw and roll back the already-attempted builder transfer.
+	plan.BuilderShareBps = 10000
 	lowData, err := contractABI.Pack("execute", plan)
 	if err != nil {
 		t.Fatal(err)
