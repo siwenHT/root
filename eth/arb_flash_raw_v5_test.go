@@ -45,7 +45,9 @@ func TestExecutorV5ActualSignedMultiAssetBundle(t *testing.T) {
     gb := genesis.MustCommit(gdb, triedb.NewDatabase(gdb, triedb.HashDefaults)); signer := types.LatestSigner(genesis.Config)
     data := append(common.FromHex(fixture.Init), common.LeftPadBytes(operator.Bytes(), 32)...); data = append(data, common.LeftPadBytes(recipient.Bytes(), 32)...)
     setup, err := types.SignTx(types.NewContractCreation(0, coin(210), 20000000, price, data), signer, key); if err != nil { t.Fatal(err) }
-    chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTx(setup) })
+    // ethash difficulty must be zeroed so the block is post-merge and the
+    // EVM rules enable Cancun, matching the fixture bytecode.
+    chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.SetDifficulty(big.NewInt(0)); g.AddTx(setup) })
     if receipts[0][0].Status != 1 { t.Fatal("fixture deployment reverted") }
     topic := crypto.Keccak256Hash([]byte("Ready(address,address,address,address,address,address,address)")); var a []common.Address
     for _, l := range receipts[0][0].Logs { if l.Address == fixtureAddress && len(l.Topics)==1 && l.Topics[0]==topic { for i:=0;i<7;i++ { a=append(a,common.BytesToAddress(l.Data[i*32:(i+1)*32])) } } }
