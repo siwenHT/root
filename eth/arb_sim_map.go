@@ -606,12 +606,12 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		errs := make([]error, workers)
 		var wg sync.WaitGroup
 		for w := 0; w < workers; w++ {
-			lo := w * n / workers
-			hi := (w + 1) * n / workers
 			wg.Add(1)
-			go func(w, lo, hi int) {
+			go func(w int) {
 				defer wg.Done()
-				for i := lo; i < hi; i++ {
+				// Round-robin so the V3 deep reads (the expensive kind) spread
+				// evenly across workers instead of clustering in one chunk.
+				for i := w; i < n; i += workers {
 					s, rerr := readPostPool(callers[w], &args.PoolReads[i])
 					if rerr != nil {
 						errs[w] = rerr
@@ -619,7 +619,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 					}
 					snaps[i] = s
 				}
-			}(w, lo, hi)
+			}(w)
 		}
 		wg.Wait()
 		for w := 0; w < workers; w++ {
@@ -646,7 +646,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 // postPoolReadWorkers bounds how many pool reads run concurrently inside one
 // arb_getPostPoolState job. The pending path reads ~40 pools (10-12 of them V3
 // deep reads) per prepare, which dominated candidate build latency when serial.
-const postPoolReadWorkers = 4
+const postPoolReadWorkers = 8
 
 // readPostPool reads one declared pool on a caller's private state copy. It
 // mirrors the serial path exactly; only the execution order changes.
