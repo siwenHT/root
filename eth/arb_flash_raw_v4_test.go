@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -70,14 +70,16 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	coin := func(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), ether) }
 	price := big.NewInt(50000000)
 	gdb, db := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
-	// Cancun is live on BSC and the fixture bytecode uses PUSH0/MCOPY, so the
-	// synthetic chain must enable it. Prague/Osaka stay off: their 16,777,216
-	// transaction gas cap rejects the 20M-gas fixture deployment.
+	// Cancun is live on BSC and the fixture bytecode uses PUSH0/MCOPY. Use the
+	// post-merge test config so the timestamp forks apply; Prague/Osaka stay off
+	// because their 16,777,216 transaction gas cap rejects the 20M-gas fixture
+	// deployment.
 	genesisConfig := *params.MergedTestChainConfig
 	genesisConfig.PragueTime = nil
 	genesisConfig.OsakaTime = nil
-	genesis := &core.Genesis{Config: &genesisConfig, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{
+	genesis := &core.Genesis{Config: &genesisConfig, Difficulty: common.Big1, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{
 		operator: {Balance: coin(1000)}, authAddress: {Code: common.FromHex(fixture.Auth), Balance: new(big.Int)},
+		params.BeaconRootsAddress: {Code: params.BeaconRootsCode},
 	}}
 	gb := genesis.MustCommit(gdb, triedb.NewDatabase(gdb, triedb.HashDefaults))
 	signer := types.LatestSigner(genesis.Config)
@@ -88,8 +90,10 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTx(setup) })
-	t.Logf("DEBUG setup status=%d gasUsed=%d initlen=%d authlen=%d", receipts[0][0].Status, receipts[0][0].GasUsed, len(common.FromHex(fixture.Init)), len(common.FromHex(fixture.Auth)))
+	chain, receipts := core.GenerateChain(genesis.Config, gb, beacon.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) {
+		g.SetParentBeaconRoot(common.Hash{1})
+		g.AddTx(setup)
+	})
 	setupReceipt := receipts[0][0]
 	if setupReceipt.Status != 1 {
 		t.Fatal("fixture deployment reverted")
@@ -107,7 +111,7 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 		t.Fatal("fixture addresses unavailable")
 	}
 	proxy, wbnb, token, p1, p2 := addresses[0], addresses[1], addresses[2], addresses[3], addresses[4]
-	bc, err := core.NewBlockChain(db, genesis, ethash.NewFaker(), core.DefaultConfig().WithStateScheme(rawdb.HashScheme))
+	bc, err := core.NewBlockChain(db, genesis, beacon.NewFaker(), core.DefaultConfig().WithStateScheme(rawdb.HashScheme))
 	if err != nil {
 		t.Fatal(err)
 	}

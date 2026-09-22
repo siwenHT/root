@@ -8,7 +8,7 @@ import (
     "testing"
     "github.com/ethereum/go-ethereum/accounts/abi"
     "github.com/ethereum/go-ethereum/common"
-    "github.com/ethereum/go-ethereum/consensus/ethash"
+    "github.com/ethereum/go-ethereum/consensus/beacon"
     "github.com/ethereum/go-ethereum/core"
     "github.com/ethereum/go-ethereum/core/rawdb"
     "github.com/ethereum/go-ethereum/core/types"
@@ -38,21 +38,22 @@ func TestExecutorV5ActualSignedMultiAssetBundle(t *testing.T) {
     authAddress := common.HexToAddress("0x8b83F636C02FfBbE4811eF0d547A8518026d59e4")
     ether := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil); coin := func(n int64) *big.Int { return new(big.Int).Mul(big.NewInt(n), ether) }; price := big.NewInt(50000000)
     gdb, db := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
+    // Post-merge test config so the Cancun timestamp forks apply (the fixture
+    // bytecode uses PUSH0/MCOPY). Prague/Osaka stay off: their transaction gas
+    // cap rejects the 20M-gas fixture deployment.
     genesisConfig := *params.MergedTestChainConfig
     genesisConfig.PragueTime = nil
     genesisConfig.OsakaTime = nil
-    genesis := &core.Genesis{Config: &genesisConfig, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{operator: {Balance: coin(1000)}, authAddress: {Code: common.FromHex(fixture.Auth)}}}
+    genesis := &core.Genesis{Config: &genesisConfig, Difficulty: common.Big1, GasLimit: 30000000, BaseFee: new(big.Int), Alloc: types.GenesisAlloc{operator: {Balance: coin(1000)}, authAddress: {Code: common.FromHex(fixture.Auth)}, params.BeaconRootsAddress: {Code: params.BeaconRootsCode}}}
     gb := genesis.MustCommit(gdb, triedb.NewDatabase(gdb, triedb.HashDefaults)); signer := types.LatestSigner(genesis.Config)
     data := append(common.FromHex(fixture.Init), common.LeftPadBytes(operator.Bytes(), 32)...); data = append(data, common.LeftPadBytes(recipient.Bytes(), 32)...)
     setup, err := types.SignTx(types.NewContractCreation(0, coin(210), 20000000, price, data), signer, key); if err != nil { t.Fatal(err) }
-    // ethash difficulty must be zeroed so the block is post-merge and the
-    // EVM rules enable Cancun, matching the fixture bytecode.
-    chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.SetDifficulty(big.NewInt(0)); g.AddTx(setup) })
+    chain, receipts := core.GenerateChain(genesis.Config, gb, beacon.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.SetParentBeaconRoot(common.Hash{1}); g.AddTx(setup) })
     if receipts[0][0].Status != 1 { t.Fatal("fixture deployment reverted") }
     topic := crypto.Keccak256Hash([]byte("Ready(address,address,address,address,address,address,address)")); var a []common.Address
     for _, l := range receipts[0][0].Logs { if l.Address == fixtureAddress && len(l.Topics)==1 && l.Topics[0]==topic { for i:=0;i<7;i++ { a=append(a,common.BytesToAddress(l.Data[i*32:(i+1)*32])) } } }
     if len(a)!=7 { t.Fatal("fixture addresses unavailable") }; proxy, wbnb, usdt, doge, financing, trade, settlement := a[0],a[1],a[2],a[3],a[4],a[5],a[6]
-    bc, err := core.NewBlockChain(db, genesis, ethash.NewFaker(), core.DefaultConfig().WithStateScheme(rawdb.HashScheme)); if err != nil { t.Fatal(err) }; defer bc.Stop(); if _,err=bc.InsertChain(chain); err!=nil { t.Fatal(err) }
+    bc, err := core.NewBlockChain(db, genesis, beacon.NewFaker(), core.DefaultConfig().WithStateScheme(rawdb.HashScheme)); if err != nil { t.Fatal(err) }; defer bc.Stop(); if _,err=bc.InsertChain(chain); err!=nil { t.Fatal(err) }
     parent:=chain[0].Header(); base,err:=bc.StateAt(parent.Root); if err!=nil {t.Fatal(err)}; x:=newTargetExecutor(bc,parent,base); env:=validEnvForExecutor(x)
     target,err:=types.SignTx(types.NewTransaction(1,fixtureAddress,new(big.Int),200000,price,crypto.Keccak256([]byte("makeProfitable()"))[:4]),signer,key);if err!=nil{t.Fatal(err)}
     fee:=append(common.LeftPadBytes(big.NewInt(997).Bytes(),32),common.LeftPadBytes(big.NewInt(1000).Bytes(),32)...); leg:=func(pool,in,out common.Address)flashLegV5{return flashLegV5{AdapterId:1,PoolOrManager:pool,TokenIn:in,TokenOut:out,MinAmountOut:new(big.Int),SqrtPriceLimitX96:new(big.Int),AdapterData:fee}}
