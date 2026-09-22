@@ -79,7 +79,11 @@ type arbServiceConfig struct {
 
 func (c arbServiceConfig) withDefaults() arbServiceConfig {
 	if c.Workers <= 0 {
-		c.Workers = 4
+		// The live engine keeps several jobs in flight per prepare (target sim
+		// plus post-pool reads, across concurrent pending builds and the head
+		// scan). Four runners left post-pool jobs queueing behind each other,
+		// which showed up as ~40ms of poll wait on the pending path.
+		c.Workers = 12
 	}
 	if c.QueueDepth <= 0 {
 		c.QueueDepth = 64
