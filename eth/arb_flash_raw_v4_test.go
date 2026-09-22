@@ -84,7 +84,7 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 	data := common.FromHex(fixture.Init)
 	data = append(data, common.LeftPadBytes(operator.Bytes(), 32)...)
 	data = append(data, common.LeftPadBytes(recipient.Bytes(), 32)...)
-	setup, err := types.SignTx(types.NewContractCreation(0, coin(210), 20000000, price, data), signer, key)
+	setup, err := types.SignTx(types.NewContractCreation(0, coin(210), 29000000, price, data), signer, key)
 	if err != nil {
 		t.Fatal(err)
 	}
