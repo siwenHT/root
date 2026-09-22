@@ -98,7 +98,7 @@ func TestExecutorV4ActualSignedFlashBundle(t *testing.T) {
 			t.Logf("DEBUG exit d=%d gasUsed=%d err=%v reverted=%v out=%x", depth, gasUsed, err, reverted, output)
 		},
 	}
-	chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTxWithVMConfig(setup, vm.Config{Debug: true, Tracer: tracer}) })
+	chain, receipts := core.GenerateChain(genesis.Config, gb, ethash.NewFaker(), gdb, 1, func(i int, g *core.BlockGen) { g.AddTxWithVMConfig(setup, vm.Config{Tracer: tracer}) })
 	setupReceipt := receipts[0][0]
 	if setupReceipt.Status != 1 {
 		t.Fatal("fixture deployment reverted")
