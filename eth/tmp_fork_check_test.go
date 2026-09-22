@@ -26,6 +26,19 @@ func tmpRun(t *testing.T, config *params.ChainConfig, initcode string) (uint64, 
 	return receipts[0][0].Status, receipts[0][0].GasUsed
 }
 
+func TestTmpForkRules(t *testing.T) {
+	merged := *params.MergedTestChainConfig
+	merged.PragueTime = nil
+	merged.OsakaTime = nil
+	n := big.NewInt(1)
+	for _, c := range []*params.ChainConfig{&merged, params.TestChainConfig} {
+		for _, isMerge := range []bool{true, false} {
+			r := c.Rules(n, isMerge, 10)
+			t.Logf("DEBUG rules chainID=%v isMerge=%v shanghai=%v cancun=%v prague=%v", c.ChainID, isMerge, r.IsShanghai, r.IsCancun, r.IsPrague)
+		}
+	}
+}
+
 func TestTmpForkFeatures(t *testing.T) {
 	merged := *params.MergedTestChainConfig
 	merged.PragueTime = nil
