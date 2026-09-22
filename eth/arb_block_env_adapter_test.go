@@ -35,6 +35,11 @@ func validEnvForExecutor(x *targetExecutor) arb.BlockEnv {
 		ExtraData:        "0x",
 		ForkRulesDigest:  validHash32,
 	}
+	// Cancun requires an explicit parent beacon root on the child block env.
+	if x.chain.Config().IsCancun(num, sec) {
+		zero := common.Hash{}.Hex()
+		env.ParentBeaconRoot = &zero
+	}
 	// Include the node-derived base fee so the adapter's match check passes.
 	if bf := x.baseFee(); bf != nil {
 		s := bf.String()
