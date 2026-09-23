@@ -218,7 +218,7 @@ func (api *ArbAPI) SimulateStateRaw(args SimulateStateRawArgs) (*JobIDResult, er
 	if err != nil {
 		return nil, err
 	}
-	if args.SchemaVersion != "4" || (args.ExecutorRevision != executorRevisionV3 && args.ExecutorRevision != executorRevisionMultiAsset) {
+	if args.SchemaVersion != "4" || !knownExecutorRevision(args.ExecutorRevision) {
 		return nil, errUnsupportedSchema
 	}
 	if args.Raw == "" {
@@ -296,7 +296,7 @@ func (api *ArbAPI) SimulateSignedBundle(args SimulateSignedBundleArgs) (*JobIDRe
 	if err != nil {
 		return nil, err
 	}
-	if args.SchemaVersion != "3" || (args.ExecutorRevision != executorRevisionV3 && args.ExecutorRevision != executorRevisionMultiAsset) {
+	if args.SchemaVersion != "3" || !knownExecutorRevision(args.ExecutorRevision) {
 		return nil, errUnsupportedSchema
 	}
 	if len(args.Raws) != 2 {

@@ -16,9 +16,18 @@ import (
 const executorRevisionV3 = "proxy-flash-v3"
 const executorRevisionMultiAsset = "proxy-multi-asset-v5"
 
+// Gas-first settlement (V4) keeps the same multi-asset ABI/layout but pays the
+// builder a share of post-gas profit, so the ledger payment is <= gross*share.
+const executorRevisionMultiAssetV6 = "proxy-multi-asset-v6"
+
+func knownExecutorRevision(r string) bool {
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV6
+}
+
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
 var ledgerTopic = crypto.Keccak256Hash([]byte("ExecutionLedger(uint256,uint256,uint256,uint256)"))
 var executedTopic = crypto.Keccak256Hash([]byte("BackrunExecuted(bytes32,bytes32,uint256,uint256,uint256)"))
+
 // Canonical dispatch heads of our own executor. The `...Share` selectors are the
 // dynamic builder-share ABI now deployed on chain; the `...Fixed` selectors are
 // the superseded fixed-payment ABI, kept so pre-upgrade receipts still decode.
@@ -129,17 +138,20 @@ func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (ma
 		return nil, errExecutorEvidence
 	}
 	gross := new(big.Int).Sub(t2, t0)
-	payment := new(big.Int)
+	payment := new(big.Int).Sub(t2, t3)
 	if layout.shareWord >= 0 {
 		share := dataWord(layout.shareWord)
 		if share.Cmp(big.NewInt(10_000)) > 0 {
 			return nil, errExecutorEvidence
 		}
-		payment.Mul(gross, share).Div(payment, big.NewInt(10_000))
-	} else {
-		payment.Set(dataWord(layout.paymentWord))
-	}
-	if new(big.Int).Sub(t2, t3).Cmp(payment) != 0 {
+		// Dynamic-share ABI. The fixed-split executor pays gross*share; the
+		// gas-first executor reserves gas first and pays less. Accept [0, gross*share].
+		maxPayment := new(big.Int).Mul(gross, share)
+		maxPayment.Div(maxPayment, big.NewInt(10_000))
+		if payment.Sign() < 0 || payment.Cmp(maxPayment) > 0 {
+			return nil, errExecutorEvidence
+		}
+	} else if payment.Cmp(dataWord(layout.paymentWord)) != 0 {
 		return nil, errExecutorEvidence
 	}
 	if !bytes.Equal(executed.Topics[1][:], data[4+32:4+64]) || !bytes.Equal(executed.Topics[2][:], data[4+64:4+96]) {

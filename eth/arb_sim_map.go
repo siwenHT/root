@@ -328,7 +328,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		return nil, errUnsupportedSchema
 	}
 	if v3 {
-		if args.ExecutorRevision != executorRevisionV3 && args.ExecutorRevision != executorRevisionMultiAsset {
+		if !knownExecutorRevision(args.ExecutorRevision) {
 			return nil, errUnsupportedSchema
 		}
 		if err := validateExecutorEnvelope(env.To, env.Data, env.GasLimit, mt); err != nil {
