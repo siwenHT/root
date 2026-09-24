@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -582,6 +583,17 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 			return &arb.JobOutcome{Kind: "post_pool", ErrCode: berr.Error()}, false
 		}
 		defer release()
+		// V3 deep-read cache: canonical pool state is fixed within one parent
+		// root, so only pools the target did not write (absent from the borrowed
+		// state's dirty set) are cached or served from cache.
+		root := header.Root
+		dirty := map[common.Address]struct{}{}
+		if v3CacheModeSetting != v3CacheOff {
+			for _, addr := range base.GetDirtyAccounts() {
+				dirty[addr] = struct{}{}
+			}
+		}
+		stats := &v3CacheJobStats{}
 		// Read pools on the post state via the same budgeted+StaticCall path used at
 		// head (newPoolCaller over the borrowed post base). Each worker owns a
 		// private state copy and budget, so the batch is split across a bounded
@@ -612,7 +624,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 				// Round-robin so the V3 deep reads (the expensive kind) spread
 				// evenly across workers instead of clustering in one chunk.
 				for i := w; i < n; i += workers {
-					s, rerr := readPostPool(callers[w], &args.PoolReads[i])
+					s, rerr := readPostPool(callers[w], &args.PoolReads[i], root, dirty, stats)
 					if rerr != nil {
 						errs[w] = rerr
 						return
@@ -627,6 +639,10 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 			if errs[w] != nil {
 				return &arb.JobOutcome{Kind: "post_pool", ErrCode: errs[w].Error()}, false
 			}
+		}
+		if v3CacheModeSetting != v3CacheOff {
+			hits, misses := stats.snapshot()
+			log.Debug("arb v3 cache", "root", root.Hex(), "dirty", len(dirty), "hits", hits, "misses", misses, "mode", int(v3CacheModeSetting))
 		}
 		return &arb.JobOutcome{
 			Kind:      "post_pool",
@@ -650,7 +666,7 @@ const postPoolReadWorkers = 8
 
 // readPostPool reads one declared pool on a caller's private state copy. It
 // mirrors the serial path exactly; only the execution order changes.
-func readPostPool(caller *poolCaller, pr *PoolReadSpec) (arb.PoolSnapshot, error) {
+func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty map[common.Address]struct{}, stats *v3CacheJobStats) (arb.PoolSnapshot, error) {
 	pool := common.HexToAddress(pr.Locator)
 	switch pr.Kind {
 	case "infinity_cl":
@@ -684,11 +700,29 @@ func readPostPool(caller *poolCaller, pr *PoolReadSpec) (arb.PoolSnapshot, error
 			EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus}, nil
 	case "v3":
 		if pr.TickSpacing > 0 {
+			cacheable := false
+			if v3CacheModeSetting != v3CacheOff {
+				if _, isDirty := dirty[pool]; !isDirty {
+					cacheable = true
+					if snap, ok := v3PoolCache.get(root, pool); ok {
+						atomic.AddUint64(&stats.hits, 1)
+						if v3CacheModeSetting == v3CacheOn {
+							snap.Locator = pr.Locator
+							return snap, nil
+						}
+					} else {
+						atomic.AddUint64(&stats.misses, 1)
+					}
+				}
+			}
 			s, rerr := caller.ReadV3Full(pool, pr.TickSpacing)
 			if rerr != nil {
 				return arb.PoolSnapshot{}, rerr
 			}
 			s.Locator = pr.Locator
+			if cacheable {
+				v3PoolCache.put(root, pool, s)
+			}
 			return s, nil
 		}
 		s, rerr := caller.ReadV3Head(pool)
