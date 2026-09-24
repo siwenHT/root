@@ -11,6 +11,7 @@ package eth
 import (
 	"errors"
 	"math/big"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -642,7 +643,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		}
 		if v3CacheModeSetting != v3CacheOff {
 			hits, misses := stats.snapshot()
-			log.Debug("arb v3 cache", "root", root.Hex(), "dirty", len(dirty), "hits", hits, "misses", misses, "mode", int(v3CacheModeSetting))
+			noteV3CacheJob(len(dirty), int(hits), int(misses), int(atomic.LoadUint64(&stats.mismatches)))
 		}
 		return &arb.JobOutcome{
 			Kind:      "post_pool",
@@ -701,13 +702,15 @@ func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty 
 	case "v3":
 		if pr.TickSpacing > 0 {
 			cacheable := false
+			var cached *arb.PoolSnapshot
 			if v3CacheModeSetting != v3CacheOff {
 				if _, isDirty := dirty[pool]; !isDirty {
 					cacheable = true
 					if snap, ok := v3PoolCache.get(root, pool); ok {
 						atomic.AddUint64(&stats.hits, 1)
+						snap.Locator = pr.Locator
+						cached = &snap
 						if v3CacheModeSetting == v3CacheOn {
-							snap.Locator = pr.Locator
 							return snap, nil
 						}
 					} else {
@@ -720,6 +723,9 @@ func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty 
 				return arb.PoolSnapshot{}, rerr
 			}
 			s.Locator = pr.Locator
+			if cached != nil && !reflect.DeepEqual(*cached, s) {
+				atomic.AddUint64(&stats.mismatches, 1)
+			}
 			if cacheable {
 				v3PoolCache.put(root, pool, s)
 			}

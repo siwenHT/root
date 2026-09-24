@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/arb"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type v3CacheMode int
@@ -92,9 +93,35 @@ func (c *v3FullCache) put(root common.Hash, pool common.Address, snap arb.PoolSn
 // a few MB, negligible against the node's state cache.
 var v3PoolCache = newV3FullCache(4)
 
+var (
+	v3CacheJobsTotal   uint64
+	v3CacheDirtyTotal  uint64
+	v3CacheHitsTotal   uint64
+	v3CacheMissesTotal uint64
+	v3CacheBadsTotal   uint64
+)
+
+// noteV3CacheJob aggregates one job and logs every 50 jobs at INFO (the node
+// log level is info, so per-job DEBUG would be dropped).
+func noteV3CacheJob(dirty, hits, misses, bads int) {
+	jobs := atomic.AddUint64(&v3CacheJobsTotal, 1)
+	atomic.AddUint64(&v3CacheDirtyTotal, uint64(dirty))
+	atomic.AddUint64(&v3CacheHitsTotal, uint64(hits))
+	atomic.AddUint64(&v3CacheMissesTotal, uint64(misses))
+	atomic.AddUint64(&v3CacheBadsTotal, uint64(bads))
+	if jobs%50 == 0 {
+		log.Info("arb v3 cache", "jobs", jobs,
+			"hits", atomic.LoadUint64(&v3CacheHitsTotal),
+			"misses", atomic.LoadUint64(&v3CacheMissesTotal),
+			"mismatches", atomic.LoadUint64(&v3CacheBadsTotal),
+			"avg_dirty", float64(atomic.LoadUint64(&v3CacheDirtyTotal))/float64(jobs))
+	}
+}
+
 type v3CacheJobStats struct {
-	hits   uint64
-	misses uint64
+	hits       uint64
+	misses     uint64
+	mismatches uint64
 }
 
 func (s *v3CacheJobStats) snapshot() (uint64, uint64) {
