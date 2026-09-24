@@ -14,14 +14,15 @@ import (
 )
 
 const executorRevisionV3 = "proxy-flash-v3"
-const executorRevisionMultiAsset = "proxy-multi-asset-v5"
 
-// Gas-first settlement (V4) keeps the same multi-asset ABI/layout but pays the
-// builder a share of post-gas profit, so the ledger payment is <= gross*share.
-const executorRevisionMultiAssetV6 = "proxy-multi-asset-v6"
+// Current multi-asset revision: gas-first settlement (V4) behind the same proxy.
+const executorRevisionMultiAsset = "proxy-multi-asset-v6"
+
+// Superseded fixed-split multi-asset revision, still decoded on old receipts.
+const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV6
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -62,7 +63,7 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 	case bytes.Equal(data[:4], executeSelectorV3Share):
 		return executeLayout{minWords: 13, gasWord: 11, offsetWord: 12, offsetValue: 12 * 32, baseTokenWord: 5, shareWord: 9, paymentWord: -1}, executorRevisionV3, true
 	case bytes.Equal(data[:4], executeMultiSelectorFixed):
-		return executeLayout{minWords: 19, gasWord: 16, offsetWord: 10, offsetValue: 18 * 32, baseTokenWord: -1, shareWord: -1, paymentWord: 14}, executorRevisionMultiAsset, true
+		return executeLayout{minWords: 19, gasWord: 16, offsetWord: 10, offsetValue: 18 * 32, baseTokenWord: -1, shareWord: -1, paymentWord: 14}, executorRevisionMultiAssetV5, true
 	case bytes.Equal(data[:4], executeMultiSelectorShare):
 		return executeLayout{minWords: 17, gasWord: 15, offsetWord: 10, offsetValue: 17 * 32, baseTokenWord: -1, shareWord: 13, paymentWord: -1}, executorRevisionMultiAsset, true
 	}
