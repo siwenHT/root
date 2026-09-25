@@ -22,9 +22,10 @@ const executorRevisionMultiAsset = "proxy-multi-asset-v6"
 const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
 const executorRevisionLunarDirect = "proxy-lunar-direct-v1"
 const executorRevisionLunarForward = "proxy-lunar-forward-v1"
+const executorRevisionTenxDirect = "proxy-tenx-direct-v1"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward || r == executorRevisionTenxDirect
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -41,6 +42,7 @@ var (
 	executeMultiSelectorShare   = []byte{0x95, 0xbc, 0xf8, 0xd2}
 	executeLunarDirectSelector  = []byte{0x17, 0x05, 0x99, 0x57}
 	executeLunarForwardSelector = []byte{0x2a, 0xb5, 0xe6, 0xb6}
+	executeTenxDirectSelector   = []byte{0x34, 0xce, 0xa7, 0xc3}
 	directWBNB                  = common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
 )
 
@@ -76,6 +78,8 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarDirect, true
 	case bytes.Equal(data[:4], executeLunarForwardSelector):
 		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarForward, true
+	case bytes.Equal(data[:4], executeTenxDirectSelector):
+		return executeLayout{minWords: 13, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionTenxDirect, true
 	}
 	return executeLayout{}, "", false
 }

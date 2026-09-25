@@ -251,6 +251,48 @@ func TestExecutorLunarForwardStaticEnvelopeAndLedger(t *testing.T) {
 	}
 }
 
+func TestExecutorTenxDirectStaticEnvelopeAndLedger(t *testing.T) {
+	data := make([]byte, 4+13*32)
+	copy(data[:4], executeTenxDirectSelector)
+	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32 : 4+(i+1)*32]) }
+	word(0, 1)
+	word(1, 2)
+	word(4, 100_000_000_000_000_000)
+	word(5, 50_000_000)
+	word(7, 9500)
+	word(9, 1_500_000)
+	word(10, 317)
+	word(11, 324)
+	word(12, 325)
+	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: directWBNB}
+	if !knownExecutorRevision(executorRevisionTenxDirect) {
+		t.Fatal("Tenx direct revision unknown")
+	}
+	if revision, ok := executorRevisionForData(data); !ok || revision != executorRevisionTenxDirect {
+		t.Fatal("Tenx direct selector revision mismatch")
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err != nil {
+		t.Fatal(err)
+	}
+	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[4:36]), common.BytesToHash(data[36:68])}, Data: words(10000, 4000, 6000)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(1000, 11000, 7000, 6000)},
+	}}
+	ledger, err := executorLedgerV3(receipt, data, mt)
+	if err != nil || ledger["executor_revision"] != executorRevisionTenxDirect {
+		t.Fatalf("Tenx direct ledger %v %v", ledger, err)
+	}
+	for _, invalid := range [][]byte{data[:len(data)-1], append(append([]byte{}, data...), 0)} {
+		if err := validateExecutorEnvelope(&mt.executor, invalid, 1_500_000, mt); err == nil {
+			t.Fatal("noncanonical Tenx tuple accepted")
+		}
+	}
+	word(7, 10_001)
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err == nil {
+		t.Fatal("Tenx share above 100% accepted")
+	}
+}
+
 func words(ns ...int64) []byte {
 	var b []byte
 	for _, n := range ns {
