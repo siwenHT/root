@@ -225,6 +225,32 @@ func TestExecutorLunarDirectStaticEnvelopeAndLedger(t *testing.T) {
 	}
 }
 
+func TestExecutorLunarForwardStaticEnvelopeAndLedger(t *testing.T) {
+	data := make([]byte, 4+10*32)
+	copy(data[:4], executeLunarForwardSelector)
+	big.NewInt(1).FillBytes(data[4:36])
+	big.NewInt(6000).FillBytes(data[4+7*32 : 4+8*32])
+	big.NewInt(1_500_000).FillBytes(data[4+9*32 : 4+10*32])
+	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: directWBNB}
+	if !knownExecutorRevision(executorRevisionLunarForward) {
+		t.Fatal("forward revision unknown")
+	}
+	if revision, ok := executorRevisionForData(data); !ok || revision != executorRevisionLunarForward {
+		t.Fatal("forward selector revision mismatch")
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err != nil {
+		t.Fatal(err)
+	}
+	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[4:36]), common.BytesToHash(data[36:68])}, Data: words(10000, 4000, 6000)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(1000, 11000, 7000, 6000)},
+	}}
+	ledger, err := executorLedgerV3(receipt, data, mt)
+	if err != nil || ledger["executor_revision"] != executorRevisionLunarForward {
+		t.Fatalf("forward ledger %v %v", ledger, err)
+	}
+}
+
 func words(ns ...int64) []byte {
 	var b []byte
 	for _, n := range ns {

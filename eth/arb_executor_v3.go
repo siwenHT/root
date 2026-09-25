@@ -21,9 +21,10 @@ const executorRevisionMultiAsset = "proxy-multi-asset-v6"
 // Superseded fixed-split multi-asset revision, still decoded on old receipts.
 const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
 const executorRevisionLunarDirect = "proxy-lunar-direct-v1"
+const executorRevisionLunarForward = "proxy-lunar-forward-v1"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -34,12 +35,13 @@ var executedTopic = crypto.Keccak256Hash([]byte("BackrunExecuted(bytes32,bytes32
 // dynamic builder-share ABI now deployed on chain; the `...Fixed` selectors are
 // the superseded fixed-payment ABI, kept so pre-upgrade receipts still decode.
 var (
-	executeSelectorV3Fixed     = []byte{0x75, 0x99, 0xbc, 0xfb}
-	executeSelectorV3Share     = []byte{0xbc, 0x20, 0xa7, 0x70}
-	executeMultiSelectorFixed  = []byte{0xb8, 0x8e, 0x2b, 0x94}
-	executeMultiSelectorShare  = []byte{0x95, 0xbc, 0xf8, 0xd2}
-	executeLunarDirectSelector = []byte{0x17, 0x05, 0x99, 0x57}
-	directWBNB                 = common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
+	executeSelectorV3Fixed      = []byte{0x75, 0x99, 0xbc, 0xfb}
+	executeSelectorV3Share      = []byte{0xbc, 0x20, 0xa7, 0x70}
+	executeMultiSelectorFixed   = []byte{0xb8, 0x8e, 0x2b, 0x94}
+	executeMultiSelectorShare   = []byte{0x95, 0xbc, 0xf8, 0xd2}
+	executeLunarDirectSelector  = []byte{0x17, 0x05, 0x99, 0x57}
+	executeLunarForwardSelector = []byte{0x2a, 0xb5, 0xe6, 0xb6}
+	directWBNB                  = common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
 )
 
 // executeLayout pins the canonical ABI head we accept. Indexes address the
@@ -72,6 +74,8 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 		return executeLayout{minWords: 17, gasWord: 15, offsetWord: 10, offsetValue: 17 * 32, baseTokenWord: -1, shareWord: 13, paymentWord: -1}, executorRevisionMultiAsset, true
 	case bytes.Equal(data[:4], executeLunarDirectSelector):
 		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarDirect, true
+	case bytes.Equal(data[:4], executeLunarForwardSelector):
+		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarForward, true
 	}
 	return executeLayout{}, "", false
 }
