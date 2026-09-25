@@ -178,6 +178,53 @@ func TestExecutorV5LegacyShareEnvelopeAndLedger(t *testing.T) {
 	}
 }
 
+func TestExecutorLunarDirectStaticEnvelopeAndLedger(t *testing.T) {
+	data := make([]byte, 4+10*32)
+	copy(data[:4], executeLunarDirectSelector)
+	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32 : 4+(i+1)*32]) }
+	word(0, 1) // opportunityId; there is no outer dynamic tuple offset
+	word(1, 2) // targetTxHash
+	word(4, 1_000_000)
+	word(5, 50_000_000)
+	word(7, 6000) // builderShareBps
+	word(9, 1_500_000)
+	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: directWBNB}
+	if !knownExecutorRevision(executorRevisionLunarDirect) {
+		t.Fatal("direct revision unknown")
+	}
+	if revision, ok := executorRevisionForData(data); !ok || revision != executorRevisionLunarDirect {
+		t.Fatal("direct selector revision mismatch")
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err != nil {
+		t.Fatal(err)
+	}
+	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[4:36]), common.BytesToHash(data[36:68])}, Data: words(10000, 4000, 6000)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: words(1000, 11000, 7000, 6000)},
+	}}
+	ledger, err := executorLedgerV3(receipt, data, mt)
+	if err != nil || ledger["executor_revision"] != executorRevisionLunarDirect {
+		t.Fatalf("direct ledger %v %v", ledger, err)
+	}
+	for _, invalid := range [][]byte{data[:len(data)-1], append(append([]byte{}, data...), 0)} {
+		if err := validateExecutorEnvelope(&mt.executor, invalid, 1_500_000, mt); err == nil {
+			t.Fatal("noncanonical static tuple accepted")
+		}
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_001, mt); err == nil {
+		t.Fatal("gas mismatch accepted")
+	}
+	wrongBase := mt
+	wrongBase.baseToken = common.HexToAddress("0x1235")
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, wrongBase); err == nil {
+		t.Fatal("wrong settlement token accepted")
+	}
+	word(7, 10_001)
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err == nil {
+		t.Fatal("share above 100% accepted")
+	}
+}
+
 func words(ns ...int64) []byte {
 	var b []byte
 	for _, n := range ns {

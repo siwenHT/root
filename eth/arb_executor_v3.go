@@ -20,9 +20,10 @@ const executorRevisionMultiAsset = "proxy-multi-asset-v6"
 
 // Superseded fixed-split multi-asset revision, still decoded on old receipts.
 const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
+const executorRevisionLunarDirect = "proxy-lunar-direct-v1"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -33,10 +34,12 @@ var executedTopic = crypto.Keccak256Hash([]byte("BackrunExecuted(bytes32,bytes32
 // dynamic builder-share ABI now deployed on chain; the `...Fixed` selectors are
 // the superseded fixed-payment ABI, kept so pre-upgrade receipts still decode.
 var (
-	executeSelectorV3Fixed    = []byte{0x75, 0x99, 0xbc, 0xfb}
-	executeSelectorV3Share    = []byte{0xbc, 0x20, 0xa7, 0x70}
-	executeMultiSelectorFixed = []byte{0xb8, 0x8e, 0x2b, 0x94}
-	executeMultiSelectorShare = []byte{0x95, 0xbc, 0xf8, 0xd2}
+	executeSelectorV3Fixed     = []byte{0x75, 0x99, 0xbc, 0xfb}
+	executeSelectorV3Share     = []byte{0xbc, 0x20, 0xa7, 0x70}
+	executeMultiSelectorFixed  = []byte{0xb8, 0x8e, 0x2b, 0x94}
+	executeMultiSelectorShare  = []byte{0x95, 0xbc, 0xf8, 0xd2}
+	executeLunarDirectSelector = []byte{0x17, 0x05, 0x99, 0x57}
+	directWBNB                 = common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
 )
 
 // executeLayout pins the canonical ABI head we accept. Indexes address the
@@ -51,6 +54,7 @@ type executeLayout struct {
 	baseTokenWord int
 	shareWord     int
 	paymentWord   int
+	staticTuple   bool
 }
 
 func executeLayoutFor(data []byte) (executeLayout, string, bool) {
@@ -66,6 +70,8 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 		return executeLayout{minWords: 19, gasWord: 16, offsetWord: 10, offsetValue: 18 * 32, baseTokenWord: -1, shareWord: -1, paymentWord: 14}, executorRevisionMultiAssetV5, true
 	case bytes.Equal(data[:4], executeMultiSelectorShare):
 		return executeLayout{minWords: 17, gasWord: 15, offsetWord: 10, offsetValue: 17 * 32, baseTokenWord: -1, shareWord: 13, paymentWord: -1}, executorRevisionMultiAsset, true
+	case bytes.Equal(data[:4], executeLunarDirectSelector):
+		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarDirect, true
 	}
 	return executeLayout{}, "", false
 }
@@ -86,10 +92,14 @@ func validateExecutorEnvelope(to *common.Address, data []byte, gas uint64, mt me
 		return errExecutorEvidence
 	}
 	word := func(i int) *big.Int { return new(big.Int).SetBytes(data[4+i*32 : 4+(i+1)*32]) }
-	if word(0).Cmp(big.NewInt(32)) != 0 || word(layout.gasWord).Cmp(new(big.Int).SetUint64(gas)) != 0 {
+	if word(layout.gasWord).Cmp(new(big.Int).SetUint64(gas)) != 0 {
 		return errExecutorEvidence
 	}
-	if word(layout.offsetWord).Cmp(big.NewInt(layout.offsetValue)) != 0 {
+	if layout.staticTuple {
+		if len(data) != 4+layout.minWords*32 || mt.baseToken != directWBNB {
+			return errExecutorEvidence
+		}
+	} else if word(0).Cmp(big.NewInt(32)) != 0 || word(layout.offsetWord).Cmp(big.NewInt(layout.offsetValue)) != 0 {
 		return errExecutorEvidence
 	}
 	if layout.baseTokenWord >= 0 && word(layout.baseTokenWord).Cmp(new(big.Int).SetBytes(mt.baseToken.Bytes())) != 0 {
@@ -109,6 +119,9 @@ func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (ma
 	}
 	layout, revision, ok := executeLayoutFor(data)
 	if !ok || len(data) < 4+layout.minWords*32 {
+		return nil, errExecutorEvidence
+	}
+	if layout.staticTuple && (len(data) != 4+layout.minWords*32 || mt.baseToken != directWBNB) {
 		return nil, errExecutorEvidence
 	}
 	var ledger, executed *types.Log
@@ -155,7 +168,11 @@ func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (ma
 	} else if payment.Cmp(dataWord(layout.paymentWord)) != 0 {
 		return nil, errExecutorEvidence
 	}
-	if !bytes.Equal(executed.Topics[1][:], data[4+32:4+64]) || !bytes.Equal(executed.Topics[2][:], data[4+64:4+96]) {
+	idWord := 1
+	if layout.staticTuple {
+		idWord = 0
+	}
+	if !bytes.Equal(executed.Topics[1][:], data[4+idWord*32:4+(idWord+1)*32]) || !bytes.Equal(executed.Topics[2][:], data[4+(idWord+1)*32:4+(idWord+2)*32]) {
 		return nil, errExecutorEvidence
 	}
 	if word(executed.Data, 0).Cmp(gross) != 0 || word(executed.Data, 1).Cmp(payment) != 0 || word(executed.Data, 2).Cmp(new(big.Int).Sub(t3, t0)) != 0 {
