@@ -198,11 +198,11 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 
 		// 模拟结果的结构体（无需保持顺序）
 		type simResult struct {
-			tx      *types.Transaction
-			receipt *types.Receipt
-			err     error
-			queuedAt time.Time
-			startedAt time.Time
+			tx         *types.Transaction
+			receipt    *types.Receipt
+			err        error
+			queuedAt   time.Time
+			startedAt  time.Time
 			finishedAt time.Time
 		}
 
@@ -260,11 +260,11 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 						startedAt := time.Now()
 						receipt, err := api.sys.backend.SimulateTransaction(ctx, txCopy)
 						results <- simResult{
-							tx:      txCopy,
-							receipt: receipt,
-							err:     err,
-							queuedAt: batchReceivedAt,
-							startedAt: startedAt,
+							tx:         txCopy,
+							receipt:    receipt,
+							err:        err,
+							queuedAt:   batchReceivedAt,
+							startedAt:  startedAt,
 							finishedAt: time.Now(),
 						}
 					})
