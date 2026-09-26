@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/arb"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // JobIDResult is the shared {job_id} response of every simulate method.
@@ -343,7 +344,25 @@ func (api *ArbAPI) SimulateSignedBundle(args SimulateSignedBundleArgs) (*JobIDRe
 		}
 		out := api.mapPrefixOutcome(args.ParentHandle, ident, res, budget)
 		out.Kind = "signed_bundle"
+		for i, tx := range res.Outcomes {
+			if tx.Class.Status == arb.StatusSuccess && tx.Class.ReceiptTrusted {
+				continue
+			}
+			selector := "0x"
+			if len(tx.RevertData) >= 4 {
+				selector = hexutil.Encode(tx.RevertData[:4])
+			}
+			log.Info("arb signed bundle execution failure", "request_id", args.RequestID,
+				"target_hash", txs[0].Hash(), "candidate_hash", txs[1].Hash(),
+				"tx_index", i, "status", tx.Class.Status.String(),
+				"receipt_trusted", tx.Class.ReceiptTrusted, "gas_used", tx.UsedGas,
+				"revert_selector", selector, "revert_data", hexutil.Encode(tx.RevertData),
+				"revert_data_len", tx.RevertDataLen)
+		}
 		if !res.Completed || len(res.Outcomes) != 2 {
+			log.Info("arb signed bundle incomplete", "request_id", args.RequestID,
+				"target_hash", txs[0].Hash(), "candidate_hash", txs[1].Hash(),
+				"attempted", len(res.Outcomes))
 			return out, false
 		}
 		for _, tx := range res.Outcomes {
