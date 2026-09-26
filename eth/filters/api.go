@@ -32,9 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/history"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-
-	// "github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -192,17 +191,30 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		defer pendingTxSub.Unsubscribe()
 
 		chainConfig := api.sys.backend.ChainConfig()
+		var latencyCount, queueTotal, simulationTotal, readyTotal, readyMax uint64
+		var batchTotal, batchMax uint64
+		var readyBuckets [6]uint64
+		var lastSlowLog time.Time
 
 		// 模拟结果的结构体（无需保持顺序）
 		type simResult struct {
 			tx      *types.Transaction
 			receipt *types.Receipt
 			err     error
+			queuedAt time.Time
+			startedAt time.Time
+			finishedAt time.Time
 		}
 
 		for {
 			select {
 			case txs := <-txs:
+				batchReceivedAt := time.Now()
+				batchSize := uint64(len(txs))
+				batchTotal += batchSize
+				if batchSize > batchMax {
+					batchMax = batchSize
+				}
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
 				latest := api.sys.backend.CurrentHeader()
@@ -245,11 +257,15 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 						semaphore <- struct{}{} // 获取信号量
 						defer func() { <-semaphore }() // 释放信号量
 
+						startedAt := time.Now()
 						receipt, err := api.sys.backend.SimulateTransaction(ctx, txCopy)
 						results <- simResult{
 							tx:      txCopy,
 							receipt: receipt,
 							err:     err,
+							queuedAt: batchReceivedAt,
+							startedAt: startedAt,
+							finishedAt: time.Now(),
 						}
 					})
 				}
@@ -262,6 +278,41 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 
 				// 流式处理结果 - 交易一完成就立即通知，无需等待所有交易
 				for result := range results {
+					readyAt := time.Now()
+					queueMs := uint64(result.startedAt.Sub(result.queuedAt).Milliseconds())
+					simulationMs := uint64(result.finishedAt.Sub(result.startedAt).Milliseconds())
+					readyMs := uint64(readyAt.Sub(result.queuedAt).Milliseconds())
+					latencyCount++
+					queueTotal += queueMs
+					simulationTotal += simulationMs
+					readyTotal += readyMs
+					if readyMs > readyMax {
+						readyMax = readyMs
+					}
+					switch {
+					case readyMs < 10:
+						readyBuckets[0]++
+					case readyMs < 25:
+						readyBuckets[1]++
+					case readyMs < 50:
+						readyBuckets[2]++
+					case readyMs < 100:
+						readyBuckets[3]++
+					case readyMs < 200:
+						readyBuckets[4]++
+					default:
+						readyBuckets[5]++
+					}
+					if readyMs >= 100 && readyAt.Sub(lastSlowLog) >= time.Second {
+						log.Debug("Slow pending simulation readiness", "hash", result.tx.Hash(), "queue_ms", queueMs, "simulation_ms", simulationMs, "ready_ms", readyMs)
+						lastSlowLog = readyAt
+					}
+					if latencyCount == 2048 {
+						log.Info("Pending simulation readiness latency", "count", latencyCount, "queue_avg_ms", queueTotal/latencyCount, "simulation_avg_ms", simulationTotal/latencyCount, "ready_avg_ms", readyTotal/latencyCount, "ready_max_ms", readyMax, "ready_buckets_ms", readyBuckets, "batch_total", batchTotal, "batch_max", batchMax)
+						latencyCount, queueTotal, simulationTotal, readyTotal, readyMax = 0, 0, 0, 0, 0
+						batchTotal, batchMax = 0, 0
+						readyBuckets = [6]uint64{}
+					}
 					if result.err != nil || result.receipt == nil || result.receipt.Status != types.ReceiptStatusSuccessful {
 						continue
 					}
