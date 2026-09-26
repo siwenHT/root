@@ -555,10 +555,31 @@ func (es *EventSystem) eventLoop() {
 	if es.voteSub != nil {
 		voteSubErr = es.voteSub.Err()
 	}
+	var pendingEventCount, dispatchTotalUs, dispatchMaxUs uint64
+	var feedBacklogMax, feedBacklogNonzero uint64
 	for {
 		select {
 		case ev := <-es.txsCh:
+			backlog := uint64(len(es.txsCh))
+			if backlog > feedBacklogMax {
+				feedBacklogMax = backlog
+			}
+			if backlog > 0 {
+				feedBacklogNonzero++
+			}
+			started := time.Now()
 			es.handleTxsEvent(index, ev)
+			dispatchUs := uint64(time.Since(started).Microseconds())
+			pendingEventCount++
+			dispatchTotalUs += dispatchUs
+			if dispatchUs > dispatchMaxUs {
+				dispatchMaxUs = dispatchUs
+			}
+			if pendingEventCount == 2048 {
+				log.Info("Pending event dispatch latency", "count", pendingEventCount, "dispatch_avg_us", dispatchTotalUs/pendingEventCount, "dispatch_max_us", dispatchMaxUs, "feed_backlog_max", feedBacklogMax, "feed_backlog_nonzero", feedBacklogNonzero)
+				pendingEventCount, dispatchTotalUs, dispatchMaxUs = 0, 0, 0
+				feedBacklogMax, feedBacklogNonzero = 0, 0
+			}
 		case ev := <-es.logsCh:
 			es.handleLogs(index, ev)
 		case ev := <-es.rmLogsCh:

@@ -193,6 +193,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		chainConfig := api.sys.backend.ChainConfig()
 		var latencyCount, queueTotal, simulationTotal, readyTotal, readyMax uint64
 		var batchTotal, batchMax uint64
+		var queuedBatchesMax uint64
 		var readyBuckets [6]uint64
 		var lastSlowLog time.Time
 
@@ -208,9 +209,13 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 
 		for {
 			select {
-			case txs := <-txs:
+			case batch := <-txs:
 				batchReceivedAt := time.Now()
-				batchSize := uint64(len(txs))
+				queuedBatches := uint64(len(txs))
+				if queuedBatches > queuedBatchesMax {
+					queuedBatchesMax = queuedBatches
+				}
+				batchSize := uint64(len(batch))
 				batchTotal += batchSize
 				if batchSize > batchMax {
 					batchMax = batchSize
@@ -218,11 +223,11 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
 				latest := api.sys.backend.CurrentHeader()
-				batchSeen := make(map[common.Hash]struct{}, len(txs))
+				batchSeen := make(map[common.Hash]struct{}, len(batch))
 				
 				// 过滤去重和已见的交易
 				var toSimulate []*types.Transaction
-				for _, tx := range txs {
+				for _, tx := range batch {
 					hash := tx.Hash()
 					if _, ok := batchSeen[hash]; ok {
 						continue
@@ -308,9 +313,10 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 						lastSlowLog = readyAt
 					}
 					if latencyCount == 2048 {
-						log.Info("Pending simulation readiness latency", "count", latencyCount, "queue_avg_ms", queueTotal/latencyCount, "simulation_avg_ms", simulationTotal/latencyCount, "ready_avg_ms", readyTotal/latencyCount, "ready_max_ms", readyMax, "ready_buckets_ms", readyBuckets, "batch_total", batchTotal, "batch_max", batchMax)
+						log.Info("Pending simulation readiness latency", "count", latencyCount, "queue_avg_ms", queueTotal/latencyCount, "simulation_avg_ms", simulationTotal/latencyCount, "ready_avg_ms", readyTotal/latencyCount, "ready_max_ms", readyMax, "ready_buckets_ms", readyBuckets, "batch_total", batchTotal, "batch_max", batchMax, "queued_batches_max", queuedBatchesMax)
 						latencyCount, queueTotal, simulationTotal, readyTotal, readyMax = 0, 0, 0, 0, 0
 						batchTotal, batchMax = 0, 0
+						queuedBatchesMax = 0
 						readyBuckets = [6]uint64{}
 					}
 					if result.err != nil || result.receipt == nil || result.receipt.Status != types.ReceiptStatusSuccessful {
