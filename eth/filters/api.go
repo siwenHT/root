@@ -187,8 +187,9 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		const maxWorkers = 24 // 并发 worker 数量，可根据实际负载调整
 		seen := make(map[common.Hash]struct{}, maxSeenPending)
 		seenOrder := make([]common.Hash, 0, maxSeenPending)
-		seenMu := sync.Mutex{} // 保护 seen 和 seenOrder 的并发访问
 		defer pendingTxSub.Unsubscribe()
+		simulationCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		defer cancel()
 
 		chainConfig := api.sys.backend.ChainConfig()
 		var latencyCount, queueTotal, simulationTotal, readyTotal, readyMax uint64
@@ -205,12 +206,44 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 			queuedAt   time.Time
 			startedAt  time.Time
 			finishedAt time.Time
+			header     *types.Header
 		}
 
+		results := make(chan simResult, maxWorkers)
+		inflight := make(map[common.Hash]struct{}, maxWorkers)
+		var toSimulate []*types.Transaction
+		var batchReceivedAt time.Time
+		var latest *types.Header
 		for {
+			// Fill free slots across batches instead of waiting for the slowest
+			// transaction in the preceding batch to finish.
+			if len(toSimulate) > 0 && len(inflight) < maxWorkers {
+				tx := toSimulate[0]
+				toSimulate[0] = nil
+				toSimulate = toSimulate[1:]
+				inflight[tx.Hash()] = struct{}{}
+				queuedAt, header := batchReceivedAt, latest
+				gopool.Submit(func() {
+					startedAt := time.Now()
+					receipt, err := api.sys.backend.SimulateTransaction(simulationCtx, tx)
+					result := simResult{tx: tx, receipt: receipt, err: err,
+						queuedAt: queuedAt, startedAt: startedAt, finishedAt: time.Now(), header: header}
+					select {
+					case results <- result:
+					case <-simulationCtx.Done():
+					}
+				})
+				continue
+			}
+			// Retain only one unscheduled batch, preserving bounded upstream
+			// backpressure while still consuming completed simulations.
+			batches := txs
+			if len(toSimulate) > 0 {
+				batches = nil
+			}
 			select {
-			case batch := <-txs:
-				batchReceivedAt := time.Now()
+			case batch := <-batches:
+				batchReceivedAt = time.Now()
 				queuedBatches := uint64(len(txs))
 				if queuedBatches > queuedBatchesMax {
 					queuedBatchesMax = queuedBatches
@@ -222,129 +255,88 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				}
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
-				latest := api.sys.backend.CurrentHeader()
+				latest = api.sys.backend.CurrentHeader()
 				batchSeen := make(map[common.Hash]struct{}, len(batch))
-				
+
 				// 过滤去重和已见的交易
-				var toSimulate []*types.Transaction
+				toSimulate = nil
 				for _, tx := range batch {
 					hash := tx.Hash()
 					if _, ok := batchSeen[hash]; ok {
 						continue
 					}
 					batchSeen[hash] = struct{}{}
-					
-					seenMu.Lock()
+
 					_, exists := seen[hash]
-					seenMu.Unlock()
-					
-					if exists {
+					_, running := inflight[hash]
+
+					if exists || running {
 						continue
 					}
 					toSimulate = append(toSimulate, tx)
 				}
 
-				if len(toSimulate) == 0 {
+			case result := <-results:
+				delete(inflight, result.tx.Hash())
+				readyAt := time.Now()
+				queueMs := uint64(result.startedAt.Sub(result.queuedAt).Milliseconds())
+				simulationMs := uint64(result.finishedAt.Sub(result.startedAt).Milliseconds())
+				readyMs := uint64(readyAt.Sub(result.queuedAt).Milliseconds())
+				latencyCount++
+				queueTotal += queueMs
+				simulationTotal += simulationMs
+				readyTotal += readyMs
+				if readyMs > readyMax {
+					readyMax = readyMs
+				}
+				switch {
+				case readyMs < 10:
+					readyBuckets[0]++
+				case readyMs < 25:
+					readyBuckets[1]++
+				case readyMs < 50:
+					readyBuckets[2]++
+				case readyMs < 100:
+					readyBuckets[3]++
+				case readyMs < 200:
+					readyBuckets[4]++
+				default:
+					readyBuckets[5]++
+				}
+				if readyMs >= 100 && readyAt.Sub(lastSlowLog) >= time.Second {
+					log.Debug("Slow pending simulation readiness", "hash", result.tx.Hash(), "queue_ms", queueMs, "simulation_ms", simulationMs, "ready_ms", readyMs)
+					lastSlowLog = readyAt
+				}
+				if latencyCount == 2048 {
+					log.Info("Pending simulation readiness latency", "count", latencyCount, "queue_avg_ms", queueTotal/latencyCount, "simulation_avg_ms", simulationTotal/latencyCount, "ready_avg_ms", readyTotal/latencyCount, "ready_max_ms", readyMax, "ready_buckets_ms", readyBuckets, "batch_total", batchTotal, "batch_max", batchMax, "queued_batches_max", queuedBatchesMax)
+					latencyCount, queueTotal, simulationTotal, readyTotal, readyMax = 0, 0, 0, 0, 0
+					batchTotal, batchMax = 0, 0
+					queuedBatchesMax = 0
+					readyBuckets = [6]uint64{}
+				}
+				if result.err != nil || result.receipt == nil || result.receipt.Status != types.ReceiptStatusSuccessful {
 					continue
 				}
 
-				// 并发模拟交易 - 流式处理，无需等待所有完成
-				results := make(chan simResult, len(toSimulate))
-				var wg sync.WaitGroup
-				semaphore := make(chan struct{}, maxWorkers)
+				hash := result.tx.Hash()
 
-				for _, tx := range toSimulate {
-					wg.Add(1)
-					txCopy := tx
-					
-					gopool.Submit(func() {
-						defer wg.Done()
-						semaphore <- struct{}{} // 获取信号量
-						defer func() { <-semaphore }() // 释放信号量
+				// Only this loop owns seen and inflight; failed simulations may retry.
+				seen[hash] = struct{}{}
+				seenOrder = append(seenOrder, hash)
 
-						startedAt := time.Now()
-						receipt, err := api.sys.backend.SimulateTransaction(ctx, txCopy)
-						results <- simResult{
-							tx:         txCopy,
-							receipt:    receipt,
-							err:        err,
-							queuedAt:   batchReceivedAt,
-							startedAt:  startedAt,
-							finishedAt: time.Now(),
-						}
-					})
+				// 限制 seen map 大小
+				if len(seen) > maxSeenPending && len(seenOrder) > 0 {
+					oldest := seenOrder[0]
+					seenOrder = seenOrder[1:]
+					delete(seen, oldest)
 				}
 
-				// 等待所有模拟完成并关闭结果通道
-				go func() {
-					wg.Wait()
-					close(results)
-				}()
-
-				// 流式处理结果 - 交易一完成就立即通知，无需等待所有交易
-				for result := range results {
-					readyAt := time.Now()
-					queueMs := uint64(result.startedAt.Sub(result.queuedAt).Milliseconds())
-					simulationMs := uint64(result.finishedAt.Sub(result.startedAt).Milliseconds())
-					readyMs := uint64(readyAt.Sub(result.queuedAt).Milliseconds())
-					latencyCount++
-					queueTotal += queueMs
-					simulationTotal += simulationMs
-					readyTotal += readyMs
-					if readyMs > readyMax {
-						readyMax = readyMs
-					}
-					switch {
-					case readyMs < 10:
-						readyBuckets[0]++
-					case readyMs < 25:
-						readyBuckets[1]++
-					case readyMs < 50:
-						readyBuckets[2]++
-					case readyMs < 100:
-						readyBuckets[3]++
-					case readyMs < 200:
-						readyBuckets[4]++
-					default:
-						readyBuckets[5]++
-					}
-					if readyMs >= 100 && readyAt.Sub(lastSlowLog) >= time.Second {
-						log.Debug("Slow pending simulation readiness", "hash", result.tx.Hash(), "queue_ms", queueMs, "simulation_ms", simulationMs, "ready_ms", readyMs)
-						lastSlowLog = readyAt
-					}
-					if latencyCount == 2048 {
-						log.Info("Pending simulation readiness latency", "count", latencyCount, "queue_avg_ms", queueTotal/latencyCount, "simulation_avg_ms", simulationTotal/latencyCount, "ready_avg_ms", readyTotal/latencyCount, "ready_max_ms", readyMax, "ready_buckets_ms", readyBuckets, "batch_total", batchTotal, "batch_max", batchMax, "queued_batches_max", queuedBatchesMax)
-						latencyCount, queueTotal, simulationTotal, readyTotal, readyMax = 0, 0, 0, 0, 0
-						batchTotal, batchMax = 0, 0
-						queuedBatchesMax = 0
-						readyBuckets = [6]uint64{}
-					}
-					if result.err != nil || result.receipt == nil || result.receipt.Status != types.ReceiptStatusSuccessful {
-						continue
-					}
-					
-					hash := result.tx.Hash()
-					
-					// 加锁更新 seen map
-					seenMu.Lock()
-					seen[hash] = struct{}{}
-					seenOrder = append(seenOrder, hash)
-					
-					// 限制 seen map 大小
-					if len(seen) > maxSeenPending && len(seenOrder) > 0 {
-						oldest := seenOrder[0]
-						seenOrder = seenOrder[1:]
-						delete(seen, oldest)
-					}
-					seenMu.Unlock()
-					
-					// 立即通知订阅端，无需等待其他交易
-					if fullTx != nil && *fullTx {
-						rpcTx := ethapi.NewRPCPendingTransaction(result.tx, latest, chainConfig, result.receipt.Logs)
-						notifier.Notify(rpcSub.ID, rpcTx)
-					} else {
-						notifier.Notify(rpcSub.ID, hash)
-					}
+				// 立即通知订阅端，无需等待其他交易
+				if fullTx != nil && *fullTx {
+					rpcTx := ethapi.NewRPCPendingTransaction(result.tx, result.header, chainConfig, result.receipt.Logs)
+					notifier.Notify(rpcSub.ID, rpcTx)
+				} else {
+					notifier.Notify(rpcSub.ID, hash)
 				}
 			case <-rpcSub.Err():
 				return
