@@ -18,6 +18,54 @@ func idn(sess string) HandleIdentity {
 	return HandleIdentity{OwnerSession: sess, NodeBootID: "boot1", Identity: "id-" + sess}
 }
 
+func TestPrefixHandlesBoundDepthExpiryAndReleaseOnce(t *testing.T) {
+	clk := &fixedClock{now: time.Unix(1000, 0)}
+	s := NewHandleStore(clk.Clock(), counterIDs())
+	root := s.Pin(idn("a"), time.Minute)
+	ids := []string{root}
+	for i := 0; i < 32; i++ {
+		child, err := s.CreateChild(ids[len(ids)-1], idn("a"), time.Second)
+		if err != nil {
+			t.Fatalf("prefix %d: %v", i, err)
+		}
+		ids = append(ids, child)
+	}
+	if _, err := s.CreateChild(ids[32], idn("a"), time.Second); err != ErrHandleDepthLimit {
+		t.Fatalf("depth bound: %v", err)
+	}
+	if err := s.Borrow(ids[32], idn("a")); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range ids {
+		if release, err := s.ReleaseHandle(id); err != nil || release {
+			t.Fatalf("borrowed descendant must keep lease: %v %v", release, err)
+		}
+	}
+	if release, err := s.ReleaseBorrow(ids[32]); err != nil || !release {
+		t.Fatalf("last borrow must release root lease: %v %v", release, err)
+	}
+	if release, _ := s.ReleaseHandle(root); release {
+		t.Fatal("double lease release")
+	}
+	if released := s.DrainReleased(); len(released) != 33 || s.Size() != 0 {
+		t.Fatal("prefix handles leaked")
+	}
+	root = s.Pin(idn("a"), time.Minute)
+	first, _ := s.CreateChild(root, idn("a"), time.Second)
+	clk.now = clk.now.Add(500 * time.Millisecond)
+	second, err := s.CreateChild(first, idn("a"), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clk.now = clk.now.Add(500 * time.Millisecond)
+	if err := s.Borrow(second, idn("a")); err != ErrHandleTTLElapsed {
+		t.Fatalf("descendant extended prefix expiry: %v", err)
+	}
+	if _, err := s.CreateChild(first, idn("a"), time.Minute); err != ErrHandleTTLElapsed {
+		t.Fatalf("expired prefix extended: %v", err)
+	}
+}
+
 // leaseTracker counts backend Dereference calls the adapter WOULD make, driven by
 // the release-now signal from the store. Proves exactly-once.
 type leaseTracker struct{ derefs int }

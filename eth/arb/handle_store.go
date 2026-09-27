@@ -95,7 +95,7 @@ var (
 	ErrIdentityMismatch  = errors.New("arb: handle identity mismatch")
 	ErrHandleTTLElapsed  = errors.New("arb: handle TTL elapsed")
 	ErrParentNotActive   = errors.New("arb: parent handle not active for child creation")
-	ErrChildOnNonParent  = errors.New("arb: child handles may only extend a parent handle")
+	ErrHandleDepthLimit  = errors.New("arb: post-state handle depth exceeds 32")
 	ErrNoBorrowToRelease = errors.New("arb: no active borrow to release")
 	ErrNoChildToRelease  = errors.New("arb: no child to release")
 )
@@ -105,6 +105,7 @@ type handleEntry struct {
 	kind     HandleKind
 	ident    HandleIdentity
 	parentID string // "" for KindParent
+	depth    uint8
 	expires  time.Time
 	status   HandleStatus
 
@@ -152,18 +153,25 @@ func (s *HandleStore) Pin(ident HandleIdentity, ttl time.Duration) string {
 
 // CreateChild registers a PostTarget child of an Active parent. It increments the
 // parent's child count so the parent's backend lease stays alive until the child
-// is released (§202). Returns the child id. The parent must be Active and of kind
-// Parent.
+// is released (§202). PostTarget handles can extend a bounded replay prefix;
+// descendants cannot extend the first post-state's expiry.
 func (s *HandleStore) CreateChild(parentID string, ident HandleIdentity, ttl time.Duration) (string, error) {
 	p, ok := s.entries[parentID]
 	if !ok {
 		return "", ErrHandleNotFound
 	}
-	if p.kind != KindParent {
-		return "", ErrChildOnNonParent
+	if p.depth >= 32 {
+		return "", ErrHandleDepthLimit
 	}
 	if p.status != StatusActive {
 		return "", ErrParentNotActive
+	}
+	if !s.clock().Before(p.expires) {
+		return "", ErrHandleTTLElapsed
+	}
+	expires := s.clock().Add(ttl)
+	if p.kind == KindPostTarget && expires.After(p.expires) {
+		expires = p.expires
 	}
 	id := s.newID()
 	s.entries[id] = &handleEntry{
@@ -171,7 +179,8 @@ func (s *HandleStore) CreateChild(parentID string, ident HandleIdentity, ttl tim
 		kind:     KindPostTarget,
 		ident:    ident,
 		parentID: parentID,
-		expires:  s.clock().Add(ttl),
+		depth:    p.depth + 1,
+		expires:  expires,
 		status:   StatusActive,
 	}
 	p.children++

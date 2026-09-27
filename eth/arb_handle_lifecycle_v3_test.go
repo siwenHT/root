@@ -48,6 +48,24 @@ func TestExecutorV3HandleConcurrencyAndParentChildCleanup(t *testing.T) {
 					t.Error("child registration failed")
 					return
 				}
+				for k := 0; k < 3; k++ {
+					base, header, release, err := svc.borrowBase(child, ident)
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					next := svc.registerPostChild(child, ident, base, header)
+					release()
+					if next == "" {
+						t.Error("prefix post-state registration failed")
+						return
+					}
+					if _, err := svc.releaseParent(child); err != nil {
+						t.Error(err)
+						return
+					}
+					child = next
+				}
 				if _, err := svc.releaseParent(id); err != nil {
 					t.Error(err)
 					return
