@@ -359,10 +359,12 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
 		}
 	}
-	// The legacy extsload layout does not expose a verified PoolKey fee.  Do not
-	// use slot.lpFee here: for a dynamic pool it is only a hook-controlled
-	// default, and for an unknown layout it cannot establish static identity.
-	fee := unresolvedInfinityFee("pool_key_unavailable")
+	// Resolve only a verified no-hook key with symmetric protocol fees, read
+	// from this same parent/post-target StateDB. Unknown layouts stay unresolved.
+	fee := c.readV4StaticFee(manager, poolID, slot, spacing)
+	if c.wrapped.Budget().Failed() {
+		return nil, ErrReadBudgetTripped
+	}
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: hook, SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick,
 		Liquidity: liq, BitmapWords: words, InitializedTicks: ticks, CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick),
 		EffectiveFeeNum: fee.Num, EffectiveFeeDen: fee.Den, EffectiveFeeResolved: fee.Resolved, EffectiveFeeStatus: fee.Status}, nil
