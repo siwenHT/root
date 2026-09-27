@@ -222,8 +222,16 @@ func resolveInfinityFee(key *arb.InfinityPoolKey, slot *arb.InfinitySlot0) Infin
 	if slot == nil || slot.LPFee != key.Fee {
 		return unresolvedInfinityFee("stored_fee_mismatch")
 	}
+	if common.BytesToAddress(key.Hooks[:]) != (common.Address{}) {
+		return unresolvedInfinityFee("hook_required")
+	}
+	p0, p1 := slot.ProtocolFee&0xfff, slot.ProtocolFee>>12
+	if p0 > 4000 || p1 > 4000 || p0 != p1 {
+		return unresolvedInfinityFee("directional_protocol_fee")
+	}
+	total := p0 + key.Fee - uint32(uint64(p0)*uint64(key.Fee)/1_000_000)
 	return InfinityFeeResolution{
-		Num:      key.Fee,
+		Num:      total,
 		Den:      infinityFeeDen,
 		Resolved: true,
 		Status:   "static_pool_key",
@@ -231,6 +239,9 @@ func resolveInfinityFee(key *arb.InfinityPoolKey, slot *arb.InfinitySlot0) Infin
 }
 
 type InfinitySnapshot struct {
+	PoolKeyData          []byte
+	ProtocolFee          uint32
+	LPFee                uint32
 	Manager              common.Address
 	PoolKey              common.Hash
 	Hook                 common.Address
@@ -382,8 +393,14 @@ func (c *poolCaller) ReadInfinityCLWithSpacing(manager common.Address, poolID co
 }
 
 func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, spacingHint int64) (*InfinitySnapshot, error) {
+	if manager == pancakeCLManager && c.wrapped.GetCodeHash(manager) != pancakeCLCodeHash {
+		return nil, errors.New("arb: pancake CL code mismatch")
+	}
 	slotRaw, err := c.staticCall(manager, arb.CallInfinityGetSlot0(poolID))
 	if err != nil {
+		if manager == pancakeCLManager {
+			return nil, err
+		}
 		return c.readInfinityStorage(manager, poolID, spacingHint)
 	}
 	slot, err := arb.DecodeInfinitySlot0(slotRaw)
@@ -402,20 +419,9 @@ func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, 
 	if err != nil {
 		return nil, err
 	}
-	key, err := arb.DecodeInfinityPoolKey(keyRaw)
+	key, spacing, err := verifiedInfinityKey(manager, poolID, keyRaw, spacingHint)
 	if err != nil {
 		return nil, err
-	}
-	if common.BytesToAddress(key.PoolManager[:]) != manager {
-		return nil, errors.New("arb: infinity pool manager mismatch")
-	}
-	params := new(big.Int).SetBytes(key.Parameters[:])
-	spacing := int64(new(big.Int).Rsh(params, 16).Uint64() & 0xffffff)
-	if spacingHint > 0 {
-		spacing = spacingHint
-	}
-	if spacing <= 0 || spacing > 16383 {
-		return nil, errors.New("arb: infinity invalid tick spacing")
 	}
 	baseCompressed := floorDiv(int64(slot.Tick), spacing)
 	baseWord := floorDiv(baseCompressed, 256)
@@ -472,6 +478,7 @@ func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, 
 	}
 	fee := resolveInfinityFee(key, slot)
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: common.BytesToAddress(key.Hooks[:]),
+		PoolKeyData: append([]byte(nil), keyRaw...), ProtocolFee: slot.ProtocolFee, LPFee: slot.LPFee,
 		SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick, Liquidity: liq, BitmapWords: words, InitializedTicks: ticks,
 		CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick), EffectiveFeeNum: fee.Num, EffectiveFeeDen: fee.Den,
 		EffectiveFeeResolved: fee.Resolved, EffectiveFeeStatus: fee.Status}, nil

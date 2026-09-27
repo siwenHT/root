@@ -158,8 +158,11 @@ type JobOutcome struct {
 // adapter emits only the Kind-relevant fields onto the wire (additionalProperties
 // false per side). Carries no EVM types on purpose — same discipline as JobOutcome.
 type PoolSnapshot struct {
-	Locator string // pool contract address, lowercase 0x-hex
-	Kind    string // "v2" | "v3" | "infinity_cl"
+	PoolKeyData string
+	ProtocolFee string
+	LPFee       string
+	Locator     string // pool contract address, lowercase 0x-hex
+	Kind        string // "v2" | "v3" | "infinity_cl"
 	// V2 (empty when Kind=="v3"):
 	Reserve0 string
 	Reserve1 string

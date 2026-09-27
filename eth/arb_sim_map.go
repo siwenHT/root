@@ -695,7 +695,14 @@ func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty 
 			// in the node log instead of emitting "0".
 			log.Debug("arb infinity effective fee unresolved", "manager", s.Manager.Hex(), "pool", s.PoolKey.Hex(), "status", s.EffectiveFeeStatus)
 		}
+		keyData, protocolFee, lpFee := "", "", ""
+		if len(s.PoolKeyData) == 192 {
+			keyData = "0x" + common.Bytes2Hex(s.PoolKeyData)
+			protocolFee = strconv.FormatUint(uint64(s.ProtocolFee), 10)
+			lpFee = strconv.FormatUint(uint64(s.LPFee), 10)
+		}
 		return arb.PoolSnapshot{Locator: pr.Locator, Kind: "infinity_cl", Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
+			PoolKeyData: keyData, ProtocolFee: protocolFee, LPFee: lpFee,
 			SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String(), BitmapWords: words,
 			InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),
 			EffectiveFeeNum: feeNum, EffectiveFeeDen: feeDen, EffectiveFeeResolved: s.EffectiveFeeResolved, EffectiveFeeStatus: s.EffectiveFeeStatus}, nil

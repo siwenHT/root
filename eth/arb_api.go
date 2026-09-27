@@ -315,6 +315,11 @@ func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 			"hook": s.Hook, "sqrt_price_x96": s.SqrtPriceX96, "tick": s.Tick, "liquidity": s.Liquidity,
 			"bitmap_words": words, "initialized_ticks": ticks, "coverage_min_tick": s.CoverageMinTick,
 			"coverage_max_tick": s.CoverageMaxTick}
+		if s.PoolKeyData != "" {
+			wire["pool_key_data"] = s.PoolKeyData
+			wire["protocol_fee"] = s.ProtocolFee
+			wire["lp_fee"] = s.LPFee
+		}
 		// Do not emit an all-zero pair for a dynamic pool.  Rust treats the
 		// absence of both fields as unresolved and will fail closed until a
 		// hook-aware amount/direction probe supplies the effective fee.
