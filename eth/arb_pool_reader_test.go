@@ -186,7 +186,11 @@ func TestSingletonStorageSpacingRange(t *testing.T) {
 		manager := common.BytesToAddress([]byte("spacing-pool"))
 		// An empty storage view has no initialized ticks; all three bitmap
 		// pages must still be read and their spacing-derived bounds retained.
-		deployReturner(sdb, manager, make([]byte, 32))
+		sdb.CreateAccount(manager)
+		// extsload(bytes32): return the storage word named in calldata.
+		sdb.SetCode(manager, common.FromHex("0x6004355460005260206000f3"), tracing.CodeChangeUnspecified)
+		base := infinityMappingSlot(common.Hash{}, infinityPoolsMappingSlot)
+		sdb.SetState(manager, base, common.BigToHash(new(big.Int).Lsh(big.NewInt(1), 96)))
 		pc := testPoolCaller(t, sdb, arb.NewReadBudget(time.Now, 1000, 0))
 		snap, err := pc.readInfinityStorage(manager, common.Hash{}, spacing)
 		if spacing > 32767 {
