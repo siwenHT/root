@@ -616,25 +616,13 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 			budgets[w] = budget.Fork()
 			callers[w] = api.svc.eth.newPoolCaller(base, header, budgets[w])
 		}
-		errs := make([]error, workers)
-		var wg sync.WaitGroup
-		for w := 0; w < workers; w++ {
-			wg.Add(1)
-			go func(w int) {
-				defer wg.Done()
-				// Round-robin so the V3 deep reads (the expensive kind) spread
-				// evenly across workers instead of clustering in one chunk.
-				for i := w; i < n; i += workers {
-					s, rerr := readPostPool(callers[w], &args.PoolReads[i], root, dirty, stats)
-					if rerr != nil {
-						errs[w] = rerr
-						return
-					}
-					snaps[i] = s
-				}
-			}(w)
-		}
-		wg.Wait()
+		errs := runPostPoolReads(n, workers, func(w, i int) error {
+			s, err := readPostPool(callers[w], &args.PoolReads[i], root, dirty, stats)
+			if err == nil {
+				snaps[i] = s
+			}
+			return err
+		})
 		for w := 0; w < workers; w++ {
 			budget.Absorb(budgets[w])
 			if errs[w] != nil {
@@ -664,6 +652,33 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 // arb_getPostPoolState job. The pending path reads ~40 pools (10-12 of them V3
 // deep reads) per prepare, which dominated candidate build latency when serial.
 const postPoolReadWorkers = 8
+
+// Cached reads and deep tick reads have very different costs. Let an idle
+// worker take the next index instead of waiting for its fixed stripe. Each
+// worker still owns one caller/budget; output indices retain request order.
+func runPostPoolReads(n, workers int, read func(worker, index int) error) []error {
+	errs := make([]error, workers)
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for {
+				i := int(next.Add(1) - 1)
+				if i >= n {
+					return
+				}
+				if err := read(w, i); err != nil {
+					errs[w] = err
+					return
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+	return errs
+}
 
 // readPostPool reads one declared pool on a caller's private state copy. It
 // mirrors the serial path exactly; only the execution order changes.
