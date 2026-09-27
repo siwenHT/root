@@ -31,7 +31,7 @@ func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spa
 	}
 	fee := binary.BigEndian.Uint32(raw[92:96])
 	tickSpacing := binary.BigEndian.Uint32(raw[124:128])
-	if fee >= infinityMaxLPFee || tickSpacing == 0 || int64(tickSpacing) != spacing || tickSpacing > 16383 {
+	if fee >= infinityMaxLPFee || tickSpacing == 0 || int64(tickSpacing) != spacing || tickSpacing > 32767 {
 		return unresolvedInfinityFee("v4_fee_spacing_invalid")
 	}
 	if slot == nil || slot.LPFee != fee {

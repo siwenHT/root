@@ -318,7 +318,7 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 	if spacing <= 0 {
 		return nil, errors.New("arb: infinity tick spacing required for legacy manager")
 	}
-	if spacing <= 0 || spacing > 16383 {
+	if spacing <= 0 || spacing > 32767 {
 		return nil, errors.New("arb: infinity invalid tick spacing")
 	}
 	baseCompressed := floorDiv(int64(slot.Tick), spacing)

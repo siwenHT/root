@@ -527,7 +527,7 @@ func validPoolRead(pr *PoolReadSpec) bool {
 		return pr.Token0 == "" && pr.Token1 == "" && pr.TickSpacing >= 0 && pr.TickSpacing <= 16383
 	case "infinity_cl":
 		return isAddressWire(pr.Manager) && isHash32Wire(pr.PoolKey) && isAddressWire(pr.Hook) &&
-			isAddressWire(pr.Token0) && isAddressWire(pr.Token1) && pr.Locator == pr.Manager && pr.TickSpacing > 0 && pr.TickSpacing <= 16383
+			isAddressWire(pr.Token0) && isAddressWire(pr.Token1) && pr.Locator == pr.Manager && pr.TickSpacing > 0 && pr.TickSpacing <= 32767
 	default:
 		return false
 	}

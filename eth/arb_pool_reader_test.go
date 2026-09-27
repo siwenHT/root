@@ -177,6 +177,33 @@ func TestResolveInfinityFeeAcceptsConsistentStaticKey(t *testing.T) {
 	}
 }
 
+func TestSingletonStorageSpacingRange(t *testing.T) {
+	for _, spacing := range []int64{16384, 17600, 32767, 32768} {
+		sdb, err := state.New(types.EmptyRootHash, state.NewDatabaseForTesting())
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager := common.BytesToAddress([]byte("spacing-pool"))
+		// An empty storage view has no initialized ticks; all three bitmap
+		// pages must still be read and their spacing-derived bounds retained.
+		deployReturner(sdb, manager, make([]byte, 32))
+		pc := testPoolCaller(t, sdb, arb.NewReadBudget(time.Now, 1000, 0))
+		snap, err := pc.readInfinityStorage(manager, common.Hash{}, spacing)
+		if spacing > 32767 {
+			if err == nil {
+				t.Fatal("out-of-range spacing accepted")
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("spacing %d: %v", spacing, err)
+		}
+		if len(snap.BitmapWords) != 3 || snap.CoverageMinTick != int32(-256*spacing) || snap.CoverageMaxTick != int32(511*spacing) {
+			t.Fatalf("spacing %d: incorrect bitmap coverage %+v", spacing, snap)
+		}
+	}
+}
+
 func TestResolveInfinityFeeRejectsUnknownOrMismatchedMetadata(t *testing.T) {
 	cases := []struct {
 		name string

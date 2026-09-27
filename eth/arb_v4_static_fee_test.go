@@ -61,3 +61,23 @@ func TestV4StaticFeeRejectsUnverifiedOrDirectionalState(t *testing.T) {
 		t.Fatal("dynamic fee guessed")
 	}
 }
+
+func TestSingletonSpacingRangeAcrossWireAndStaticFee(t *testing.T) {
+	for _, spacing := range []uint32{0, 1, 16383, 16384, 17600, 32767, 32768} {
+		want := spacing > 0 && spacing <= 32767
+		raw := v4FeeKey(350)
+		binary.BigEndian.PutUint32(raw[124:128], spacing)
+		id := crypto.Keccak256Hash(raw)
+		manager := "0x28e2ea090877bf75740558f6bfb36a5ffee9e9df"
+		pr := PoolReadSpec{Kind: "infinity_cl", Locator: manager, Manager: manager,
+			PoolKey: id.Hex(), Hook: "0x0000000000000000000000000000000000000000",
+			Token0: "0x431a3bee82e2ca41e49895cbece5bb0f76a89b7a", Token1: "0x55d398326f99059ff775485246999027b3197955", TickSpacing: int32(spacing)}
+		if validPoolRead(&pr) != want {
+			t.Fatalf("wire spacing %d: want %v", spacing, want)
+		}
+		got := resolveV4StaticFee(id, raw, &arb.InfinitySlot0{LPFee: 350}, int64(spacing))
+		if got.Resolved != want {
+			t.Fatalf("fee spacing %d: %+v", spacing, got)
+		}
+	}
+}
