@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -186,7 +187,7 @@ func executorLedgerV3(receipt *types.Receipt, data []byte, mt measureTarget) (ma
 	if word(executed.Data, 0).Cmp(gross) != 0 || word(executed.Data, 1).Cmp(payment) != 0 || word(executed.Data, 2).Cmp(new(big.Int).Sub(t3, t0)) != 0 {
 		return nil, errExecutorEvidence
 	}
-	return map[string]any{"executor_revision": revision, "measurement": "executor_event_pre_sweep", "executor": strings.ToLower(mt.executor.Hex()), "base_token": strings.ToLower(mt.baseToken.Hex()), "retained_t0": t0.String(), "retained_t2": t2.String(), "retained_t3": t3.String(), "builder_payment": payment.String(), "owner_sweep": sweep.String()}, nil
+	return map[string]any{"executor_revision": revision, "measurement": "executor_event_pre_sweep", "executor": strings.ToLower(mt.executor.Hex()), "base_token": strings.ToLower(mt.baseToken.Hex()), "executor_gas_used": strconv.FormatUint(receipt.GasUsed, 10), "retained_t0": t0.String(), "retained_t2": t2.String(), "retained_t3": t3.String(), "builder_payment": payment.String(), "owner_sweep": sweep.String()}, nil
 }
 
 func blockEnvDigestV3(e arb.BlockEnv) ([32]byte, error) {

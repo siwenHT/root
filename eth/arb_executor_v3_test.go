@@ -85,7 +85,7 @@ func TestExecutorV3ReceiptAndEnvelope(t *testing.T) {
 		return b
 	}
 	makeReceipt := func() *types.Receipt {
-		return &types.Receipt{Status: 1, Logs: []*types.Log{
+		return &types.Receipt{Status: 1, GasUsed: 123456, CumulativeGasUsed: 987654, Logs: []*types.Log{
 			{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: amounts(8000, 5000, 3000)},
 			{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: amounts(2000, 10000, 5000, 5000)},
 		}}
@@ -93,6 +93,9 @@ func TestExecutorV3ReceiptAndEnvelope(t *testing.T) {
 	p, err := executorLedgerV3(makeReceipt(), data, mt)
 	if err != nil || p["retained_t3"] != "5000" {
 		t.Fatalf("ledger %v %v", p, err)
+	}
+	if p["executor_gas_used"] != "123456" {
+		t.Fatalf("executor gas must exclude preceding transactions: %v", p["executor_gas_used"])
 	}
 	for _, corrupt := range []func(*types.Receipt){
 		func(r *types.Receipt) { r.Status = 0 },
