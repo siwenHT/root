@@ -17,12 +17,40 @@
 package downloader
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/log"
 )
+
+// A silent sync peer must not hold a live node behind the chain for a minute.
+// Zero explicitly restores the original adaptive timeout. Body/receipt/state
+// downloads keep their original timeouts.
+func configuredHeaderTimeout() time.Duration {
+	const fallback = 5 * time.Second
+	raw := os.Getenv("ARB_SYNC_HEADER_TIMEOUT_MS")
+	if raw == "" {
+		return fallback
+	}
+	ms, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || ms > 60000 || (ms != 0 && ms < 1000) {
+		log.Warn("Invalid ARB_SYNC_HEADER_TIMEOUT_MS; using default", "default", fallback)
+		return fallback
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+func (d *Downloader) headerRequestTimeout() time.Duration {
+	ttl := d.peers.rates.TargetTimeout()
+	if d.headerTimeoutCap > 0 {
+		ttl = min(ttl, d.headerTimeoutCap)
+	}
+	return ttl
+}
 
 // fetchHeadersByHash is a blocking version of Peer.RequestHeadersByHash which
 // handles all the cancellation, interruption and timeout mechanisms of a data
@@ -39,15 +67,18 @@ func (d *Downloader) fetchHeadersByHash(p *peerConnection, hash common.Hash, amo
 	defer req.Close()
 
 	// Wait until the response arrives, the request is cancelled or times out
-	ttl := d.peers.rates.TargetTimeout()
+	ttl := d.headerRequestTimeout()
 
 	timeoutTimer := time.NewTimer(ttl)
 	defer timeoutTimer.Stop()
 
 	select {
+	case <-d.cancelCh:
+		return nil, nil, errCanceled
+
 	case <-timeoutTimer.C:
 		// Header retrieval timed out, update the metrics
-		p.log.Debug("Header request timed out", "elapsed", ttl)
+		p.log.Warn("Header request timed out", "kind", "hash", "elapsed", time.Since(start), "limit", ttl)
 		headerTimeoutMeter.Mark(1)
 
 		return nil, nil, errTimeout
@@ -81,7 +112,7 @@ func (d *Downloader) fetchHeadersByNumber(p *peerConnection, number uint64, amou
 	defer req.Close()
 
 	// Wait until the response arrives, the request is cancelled or times out
-	ttl := d.peers.rates.TargetTimeout()
+	ttl := d.headerRequestTimeout()
 
 	timeoutTimer := time.NewTimer(ttl)
 	defer timeoutTimer.Stop()
@@ -92,7 +123,7 @@ func (d *Downloader) fetchHeadersByNumber(p *peerConnection, number uint64, amou
 
 	case <-timeoutTimer.C:
 		// Header retrieval timed out, update the metrics
-		p.log.Debug("Header request timed out", "elapsed", ttl)
+		p.log.Warn("Header request timed out", "kind", "number", "elapsed", time.Since(start), "limit", ttl)
 		headerTimeoutMeter.Mark(1)
 
 		return nil, nil, errTimeout

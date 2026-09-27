@@ -109,8 +109,9 @@ type Downloader struct {
 	mode atomic.Uint32  // Synchronisation mode defining the strategy used (per sync cycle), use d.getMode() to get the SyncMode
 	mux  *event.TypeMux // Event multiplexer to announce sync operation events
 
-	queue *queue   // Scheduler for selecting the hashes to download
-	peers *peerSet // Set of active peers from which download can proceed
+	queue            *queue        // Scheduler for selecting the hashes to download
+	peers            *peerSet      // Set of active peers from which download can proceed
+	headerTimeoutCap time.Duration // Upper bound for blocking header requests; zero preserves adaptive TTL.
 
 	stateDB ethdb.Database // Database to state sync into (and deduplicate via)
 
@@ -244,6 +245,7 @@ func New(stateDb ethdb.Database, mux *event.TypeMux, chain BlockChain, dropPeer 
 		mux:               mux,
 		queue:             newQueue(blockCacheMaxItems, blockCacheInitialItems),
 		peers:             newPeerSet(),
+		headerTimeoutCap:  configuredHeaderTimeout(),
 		blockchain:        chain,
 		chainCutoffNumber: cutoffNumber,
 		chainCutoffHash:   cutoffHash,
