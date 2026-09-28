@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"math"
 	mrand "math/rand"
+	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -177,16 +179,34 @@ type TxFetcher struct {
 	fetchTxs func(string, []common.Hash) error          // Retrieves a set of txs from a remote peer
 	dropPeer func(string)                               // Drops a peer in case of announcement violation
 
-	step     chan struct{}    // Notification channel when the fetcher loop iterates
-	clock    mclock.Clock     // Monotonic clock or simulated clock for tests
-	realTime func() time.Time // Real system time or simulated time for tests
-	rand     *mrand.Rand      // Randomizer to use in tests instead of map range loops (soft-random)
+	step          chan struct{}    // Notification channel when the fetcher loop iterates
+	clock         mclock.Clock     // Monotonic clock or simulated clock for tests
+	realTime      func() time.Time // Real system time or simulated time for tests
+	rand          *mrand.Rand      // Randomizer to use in tests instead of map range loops (soft-random)
+	arriveTimeout time.Duration    // Grace period for broadcast before requesting an announced body
+	arriveSlack   time.Duration    // Coalescing slack for the arrival timer only
 }
 
 // NewTxFetcher creates a transaction fetcher to retrieve transaction
 // based on hash announcements.
 func NewTxFetcher(hasTx func(common.Hash) bool, addTxs func(string, []*types.Transaction) []error, fetchTxs func(string, []common.Hash) error, dropPeer func(string)) *TxFetcher {
-	return NewTxFetcherForTests(hasTx, addTxs, fetchTxs, dropPeer, mclock.System{}, time.Now, nil)
+	f := NewTxFetcherForTests(hasTx, addTxs, fetchTxs, dropPeer, mclock.System{}, time.Now, nil)
+	f.arriveTimeout, f.arriveSlack = pendingArrivalTiming(os.Getenv("ARB_TX_ARRIVE_TIMEOUT_MS"))
+	log.Info("Pending transaction fetch timing", "arrival_wait", f.arriveTimeout, "arrival_slack", f.arriveSlack)
+	return f
+}
+
+func pendingArrivalTiming(raw string) (time.Duration, time.Duration) {
+	if raw == "" {
+		return txArriveTimeout, txGatherSlack
+	}
+	ms, err := strconv.Atoi(raw)
+	if err != nil || ms < 1 || ms > 2000 {
+		log.Warn("Invalid ARB_TX_ARRIVE_TIMEOUT_MS; using default", "default", txArriveTimeout)
+		return txArriveTimeout, txGatherSlack
+	}
+	wait := time.Duration(ms) * time.Millisecond
+	return wait, min(txGatherSlack, wait/4)
 }
 
 // NewTxFetcherForTests is a testing method to mock out the realtime clock with
@@ -215,6 +235,9 @@ func NewTxFetcherForTests(
 		clock:       clock,
 		realTime:    realTime,
 		rand:        rand,
+
+		arriveTimeout: txArriveTimeout,
+		arriveSlack:   txGatherSlack,
 	}
 }
 
@@ -524,7 +547,7 @@ func (f *TxFetcher) loop() {
 					f.waittime[hash] = f.clock.Now()
 				} else {
 					hasBlob = true
-					f.waittime[hash] = f.clock.Now() - mclock.AbsTime(txArriveTimeout)
+					f.waittime[hash] = f.clock.Now() - mclock.AbsTime(f.arriveTimeout)
 				}
 				if waitslots := f.waitslots[ann.origin]; waitslots != nil {
 					waitslots[hash] = &txMetadataWithSeq{
@@ -555,7 +578,7 @@ func (f *TxFetcher) loop() {
 			// ones into the retrieval queues
 			actives := make(map[string]struct{})
 			for hash, instance := range f.waittime {
-				if time.Duration(f.clock.Now()-instance)+txGatherSlack > txArriveTimeout {
+				if time.Duration(f.clock.Now()-instance)+f.arriveSlack > f.arriveTimeout {
 					// Transaction expired without propagation, schedule for retrieval
 					if f.announced[hash] != nil {
 						panic("announce tracker already contains waitlist item")
@@ -852,9 +875,7 @@ func (f *TxFetcher) loop() {
 // rescheduleWait iterates over all the transactions currently in the waitlist
 // and schedules the movement into the fetcher for the earliest.
 //
-// The method has a granularity of 'txGatherSlack', since there's not much point in
-// spinning over all the transactions just to maybe find one that should trigger
-// a few ms earlier.
+// The arrival slack bounds coalescing when choosing the next deadline.
 func (f *TxFetcher) rescheduleWait(timer *mclock.Timer, trigger chan struct{}) {
 	if *timer != nil {
 		(*timer).Stop()
@@ -865,12 +886,12 @@ func (f *TxFetcher) rescheduleWait(timer *mclock.Timer, trigger chan struct{}) {
 	for _, instance := range f.waittime {
 		if earliest > instance {
 			earliest = instance
-			if txArriveTimeout-time.Duration(now-earliest) < txGatherSlack {
+			if f.arriveTimeout-time.Duration(now-earliest) < f.arriveSlack {
 				break
 			}
 		}
 	}
-	*timer = f.clock.AfterFunc(txArriveTimeout-time.Duration(now-earliest), func() {
+	*timer = f.clock.AfterFunc(f.arriveTimeout-time.Duration(now-earliest), func() {
 		trigger <- struct{}{}
 	})
 }
