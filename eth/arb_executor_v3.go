@@ -24,9 +24,10 @@ const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
 const executorRevisionLunarDirect = "proxy-lunar-direct-v1"
 const executorRevisionLunarForward = "proxy-lunar-forward-v1"
 const executorRevisionTenxDirect = "proxy-tenx-direct-v1"
+const executorRevisionMultiCycle = "proxy-multi-cycle-v1"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward || r == executorRevisionTenxDirect
+	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward || r == executorRevisionTenxDirect || r == executorRevisionMultiCycle
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -44,6 +45,7 @@ var (
 	executeLunarDirectSelector  = []byte{0x17, 0x05, 0x99, 0x57}
 	executeLunarForwardSelector = []byte{0x2a, 0xb5, 0xe6, 0xb6}
 	executeTenxDirectSelector   = []byte{0x34, 0xce, 0xa7, 0xc3}
+	executeMultiCycleSelector   = []byte{0xad, 0x02, 0x99, 0xd2}
 	directWBNB                  = common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")
 )
 
@@ -81,6 +83,13 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 		return executeLayout{minWords: 10, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionLunarForward, true
 	case bytes.Equal(data[:4], executeTenxDirectSelector):
 		return executeLayout{minWords: 13, gasWord: 9, offsetWord: -1, baseTokenWord: -1, shareWord: 7, paymentWord: -1, staticTuple: true}, executorRevisionTenxDirect, true
+	case bytes.Equal(data[:4], executeMultiCycleSelector):
+		// executeMultiCycle(MultiCyclePlan): one dynamic tuple argument. The
+		// static head is ten words (opportunityId, targetTxHash,
+		// requiredParentHash, targetBlockNumber, maxGasPriceWei, recipient,
+		// shareBps, routeStateDigest, gasLimit, cycles offset), so the dynamic
+		// planning area starts 10*32 bytes into the tuple.
+		return executeLayout{minWords: 11, gasWord: 9, offsetWord: 10, offsetValue: 10 * 32, baseTokenWord: -1, shareWord: 7, paymentWord: -1}, executorRevisionMultiCycle, true
 	}
 	return executeLayout{}, "", false
 }

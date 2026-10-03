@@ -303,3 +303,60 @@ func words(ns ...int64) []byte {
 	}
 	return b
 }
+
+// The multi-cycle entrypoint is a single dynamic tuple: the envelope validator
+// must read gas/share from the tuple head and the ledger must decode the same
+// pre-sweep events as every other executor entrypoint.
+func TestExecutorMultiCycleEnvelopeAndLedger(t *testing.T) {
+	data := make([]byte, 4+11*32)
+	copy(data[:4], executeMultiCycleSelector)
+	word := func(i int, n int64) { big.NewInt(n).FillBytes(data[4+i*32 : 4+(i+1)*32]) }
+	word(0, 32) // outer tuple offset
+	word(1, 1)  // opportunityId
+	word(2, 2)  // targetTxHash
+	word(3, 3)  // requiredParentHash
+	word(4, 1_000_000)
+	word(5, 50_000_000)
+	word(7, 9500) // builderShareBps
+	word(9, 1_500_000)
+	word(10, 10*32) // cycles offset
+	mt := measureTarget{measure: true, executor: common.HexToAddress("0x1234"), baseToken: common.HexToAddress("0xbb")}
+	if !knownExecutorRevision(executorRevisionMultiCycle) {
+		t.Fatal("multi-cycle revision unknown")
+	}
+	if revision, ok := executorRevisionForData(data); !ok || revision != executorRevisionMultiCycle {
+		t.Fatal("multi-cycle selector revision mismatch")
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_000, mt); err != nil {
+		t.Fatal(err)
+	}
+	amounts := func(ns ...int64) []byte {
+		var b []byte
+		for _, n := range ns {
+			b = append(b, common.LeftPadBytes(big.NewInt(n).Bytes(), 32)...)
+		}
+		return b
+	}
+	receipt := &types.Receipt{Status: 1, Logs: []*types.Log{
+		{Address: mt.executor, Topics: []common.Hash{executedTopic, common.BytesToHash(data[36:68]), common.BytesToHash(data[68:100])}, Data: amounts(10000, 4000, 6000)},
+		{Address: mt.executor, Topics: []common.Hash{ledgerTopic}, Data: amounts(1000, 11000, 7000, 6000)},
+	}}
+	ledger, err := executorLedgerV3(receipt, data, mt)
+	if err != nil || ledger["executor_revision"] != executorRevisionMultiCycle {
+		t.Fatalf("multi-cycle ledger %v %v", ledger, err)
+	}
+	if err := validateExecutorEnvelope(&mt.executor, data, 1_500_001, mt); err == nil {
+		t.Fatal("gas mismatch accepted")
+	}
+	corrupt := append(append([]byte{}, data...), 0)
+	if err := validateExecutorEnvelope(&mt.executor, corrupt, 1_500_000, mt); err != nil {
+		// An appended byte is still a well-formed longer payload; the envelope
+		// check must not reject a valid prefix, only a shifted one.
+		t.Fatal(err)
+	}
+	shifted := append([]byte{}, data...)
+	big.NewInt(64).FillBytes(shifted[4:36])
+	if err := validateExecutorEnvelope(&mt.executor, shifted, 1_500_000, mt); err == nil {
+		t.Fatal("shifted tuple offset accepted")
+	}
+}
