@@ -122,7 +122,9 @@ func New(conf *Config) (*Node, error) {
 				maxBackups = *conf.LogConfig.MaxBackups
 			}
 
-			log.SetDefault(log.NewLogger(log.RotatingFileHandler(logFilePath, *conf.LogConfig.MaxBytesSize, maxBackups, *conf.LogConfig.Level, rotateHours)))
+			handler := log.RotatingFileHandler(logFilePath, *conf.LogConfig.MaxBytesSize, maxBackups, *conf.LogConfig.Level, rotateHours)
+			handler = log.MessageFilterHandler(handler, conf.LogConfig.MessageFilter)
+			log.SetDefault(log.NewLogger(handler))
 		}
 	}
 	if conf.Logger == nil {

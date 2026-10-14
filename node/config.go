@@ -522,12 +522,15 @@ func (c *Config) GetKeyStoreDir() (string, bool, error) {
 }
 
 type LogConfig struct {
-	FileRoot     *string `toml:",omitempty"`
-	FilePath     *string `toml:",omitempty"`
-	MaxBytesSize *uint   `toml:",omitempty"`
-	Level        *string `toml:",omitempty"`
-	RotateHours  *uint   `toml:",omitempty"`
-	MaxBackups   *uint   `toml:",omitempty"`
+	// MessageFilter limits routine records to these exact messages. Warnings
+	// and errors remain visible; an empty list preserves the unfiltered logger.
+	MessageFilter []string `toml:",omitempty"`
+	FileRoot      *string  `toml:",omitempty"`
+	FilePath      *string  `toml:",omitempty"`
+	MaxBytesSize  *uint    `toml:",omitempty"`
+	Level         *string  `toml:",omitempty"`
+	RotateHours   *uint    `toml:",omitempty"`
+	MaxBackups    *uint    `toml:",omitempty"`
 
 	// TermTimeFormat is the time format used for console logging.
 	TermTimeFormat *string `toml:",omitempty"`
