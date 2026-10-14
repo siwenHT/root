@@ -195,6 +195,7 @@ const (
 // The status is intentionally kept separate from the numeric pair so callers
 // cannot mistake zero values for a resolved zero-fee quote.
 type InfinityFeeResolution struct {
+	KeyData  []byte // Verified five-word v4 key, bound to the same StateDB.
 	Num      uint32
 	Den      uint32
 	Resolved bool
@@ -378,6 +379,7 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 	}
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: hook, SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick,
 		Liquidity: liq, BitmapWords: words, InitializedTicks: ticks, CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick),
+		PoolKeyData: fee.KeyData, ProtocolFee: slot.ProtocolFee, LPFee: slot.LPFee,
 		EffectiveFeeNum: fee.Num, EffectiveFeeDen: fee.Den, EffectiveFeeResolved: fee.Resolved, EffectiveFeeStatus: fee.Status}, nil
 }
 

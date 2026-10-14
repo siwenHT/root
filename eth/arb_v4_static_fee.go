@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"bytes"
 	"encoding/binary"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,6 +19,14 @@ var bscV4CodeHash = common.HexToHash("0x48752321ee7abf0d2a17c30679df9a1ddd14dc75
 func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spacing int64) InfinityFeeResolution {
 	if len(raw) != 160 || crypto.Keccak256Hash(raw) != id {
 		return unresolvedInfinityFee("v4_pool_key_mismatch")
+	}
+	for _, word := range [][]byte{raw[:32], raw[32:64]} {
+		if !bytes.Equal(word[:12], make([]byte, 12)) {
+			return unresolvedInfinityFee("v4_currency_padding")
+		}
+	}
+	if bytes.Compare(raw[:32], raw[32:64]) >= 0 {
+		return unresolvedInfinityFee("v4_currency_order")
 	}
 	for _, b := range raw[128:160] {
 		if b != 0 {
@@ -38,12 +47,18 @@ func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spa
 		return unresolvedInfinityFee("v4_stored_fee_mismatch")
 	}
 	p0, p1 := slot.ProtocolFee&0xfff, slot.ProtocolFee>>12
-	if p0 > 1000 || p1 > 1000 || p0 != p1 {
+	if p0 > 1000 || p1 > 1000 {
 		return unresolvedInfinityFee("v4_directional_protocol_fee")
+	}
+	keyData := append([]byte(nil), raw...)
+	if p0 != p1 {
+		// Complete v4 metadata supports directional quotes; legacy scalar
+		// consumers must still leave this fee unresolved.
+		return InfinityFeeResolution{KeyData: keyData, Status: "v4_directional_protocol_fee"}
 	}
 	// Uniswap ProtocolFeeLibrary.calculateSwapFee, rounded as on chain.
 	total := p0 + fee - uint32(uint64(p0)*uint64(fee)/1_000_000)
-	return InfinityFeeResolution{Num: total, Den: infinityFeeDen, Resolved: true, Status: "v4_verified_static_slot"}
+	return InfinityFeeResolution{KeyData: keyData, Num: total, Den: infinityFeeDen, Resolved: true, Status: "v4_verified_static_slot"}
 }
 
 func (c *poolCaller) readV4StaticFee(manager common.Address, id common.Hash, slot *arb.InfinitySlot0, spacing int64) InfinityFeeResolution {

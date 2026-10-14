@@ -525,6 +525,11 @@ func validPoolRead(pr *PoolReadSpec) bool {
 		return isAddressWire(pr.Token0) && isAddressWire(pr.Token1)
 	case "v3":
 		return pr.Token0 == "" && pr.Token1 == "" && pr.TickSpacing >= 0 && pr.TickSpacing <= 16383
+	case "v4":
+		if common.HexToAddress(pr.Manager) != bscV4Manager || common.HexToAddress(pr.Hook) != (common.Address{}) {
+			return false
+		}
+		fallthrough
 	case "infinity_cl":
 		return isAddressWire(pr.Manager) && isHash32Wire(pr.PoolKey) && isAddressWire(pr.Hook) &&
 			isAddressWire(pr.Token0) && isAddressWire(pr.Token1) && pr.Locator == pr.Manager && pr.TickSpacing > 0 && pr.TickSpacing <= 32767
@@ -685,7 +690,7 @@ func runPostPoolReads(n, workers int, read func(worker, index int) error) []erro
 func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty map[common.Address]struct{}, stats *v3CacheJobStats) (arb.PoolSnapshot, error) {
 	pool := common.HexToAddress(pr.Locator)
 	switch pr.Kind {
-	case "infinity_cl":
+	case "infinity_cl", "v4":
 		manager := common.HexToAddress(pr.Manager)
 		poolID := common.HexToHash(pr.PoolKey)
 		s, rerr := caller.ReadInfinityCLWithSpacing(manager, poolID, int64(pr.TickSpacing))
@@ -711,12 +716,20 @@ func readPostPool(caller *poolCaller, pr *PoolReadSpec, root common.Hash, dirty 
 			log.Debug("arb infinity effective fee unresolved", "manager", s.Manager.Hex(), "pool", s.PoolKey.Hex(), "status", s.EffectiveFeeStatus)
 		}
 		keyData, protocolFee, lpFee := "", "", ""
-		if len(s.PoolKeyData) == 192 {
+		if pr.Kind == "v4" {
+			if len(s.PoolKeyData) != 160 ||
+				common.BytesToAddress(s.PoolKeyData[:32]) != common.HexToAddress(pr.Token0) ||
+				common.BytesToAddress(s.PoolKeyData[32:64]) != common.HexToAddress(pr.Token1) ||
+				common.BytesToAddress(s.PoolKeyData[128:160]) != common.HexToAddress(pr.Hook) {
+				return arb.PoolSnapshot{}, errors.New("arb: v4 key metadata mismatch")
+			}
+		}
+		if (pr.Kind == "v4" && len(s.PoolKeyData) == 160) || (pr.Kind == "infinity_cl" && len(s.PoolKeyData) == 192) {
 			keyData = "0x" + common.Bytes2Hex(s.PoolKeyData)
 			protocolFee = strconv.FormatUint(uint64(s.ProtocolFee), 10)
 			lpFee = strconv.FormatUint(uint64(s.LPFee), 10)
 		}
-		return arb.PoolSnapshot{Locator: pr.Locator, Kind: "infinity_cl", Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
+		return arb.PoolSnapshot{Locator: pr.Locator, Kind: pr.Kind, Manager: s.Manager.Hex(), PoolKey: s.PoolKey.Hex(), Hook: s.Hook.Hex(),
 			PoolKeyData: keyData, ProtocolFee: protocolFee, LPFee: lpFee,
 			SqrtPriceX96: s.SqrtPriceX96.String(), Tick: strconv.FormatInt(int64(s.Tick), 10), Liquidity: s.Liquidity.String(), BitmapWords: words,
 			InitializedTicks: ticks, CoverageMinTick: strconv.FormatInt(int64(s.CoverageMinTick), 10), CoverageMaxTick: strconv.FormatInt(int64(s.CoverageMaxTick), 10),

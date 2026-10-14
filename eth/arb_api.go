@@ -302,7 +302,7 @@ func jobResultPayload(o *arb.JobOutcome) any {
 // liquidity) so each object is additionalProperties:false per the v2 schema side.
 func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 	switch s.Kind {
-	case "infinity_cl":
+	case "infinity_cl", "v4":
 		words := make([]any, 0, len(s.BitmapWords))
 		for _, w := range s.BitmapWords {
 			words = append(words, map[string]any{"index": w.Index, "value": w.Value})
@@ -311,7 +311,7 @@ func poolSnapshotWire(s arb.PoolSnapshot) map[string]any {
 		for _, t := range s.InitializedTicks {
 			ticks = append(ticks, map[string]any{"index": t.Index, "liquidity_gross": t.LiquidityGross, "liquidity_net": t.LiquidityNet})
 		}
-		wire := map[string]any{"manager": s.Manager, "locator": s.Manager, "kind": "infinity_cl", "pool_key": s.PoolKey,
+		wire := map[string]any{"manager": s.Manager, "locator": s.Manager, "kind": s.Kind, "pool_key": s.PoolKey,
 			"hook": s.Hook, "sqrt_price_x96": s.SqrtPriceX96, "tick": s.Tick, "liquidity": s.Liquidity,
 			"bitmap_words": words, "initialized_ticks": ticks, "coverage_min_tick": s.CoverageMinTick,
 			"coverage_max_tick": s.CoverageMaxTick}
