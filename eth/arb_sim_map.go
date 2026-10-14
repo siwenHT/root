@@ -577,7 +577,7 @@ func (api *ArbAPI) GetPostPoolState(args GetPostPoolStateArgs) (*JobIDResult, er
 		if pr.Kind == "v3" && pr.TickSpacing > 0 {
 			d.FieldBytes([]byte(strconv.FormatInt(int64(pr.TickSpacing), 10)))
 		}
-		if pr.Kind == "infinity_cl" {
+		if pr.Kind == "infinity_cl" || pr.Kind == "v4" {
 			d.FieldBytes([]byte(pr.Manager)).FieldBytes([]byte(pr.PoolKey)).FieldBytes([]byte(pr.Hook)).FieldBytes([]byte(strconv.FormatInt(int64(pr.TickSpacing), 10)))
 		}
 	}

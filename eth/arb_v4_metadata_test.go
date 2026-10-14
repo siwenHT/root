@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -36,10 +37,10 @@ func TestV4DirectionalMetadataDoesNotInventLegacyFee(t *testing.T) {
 }
 
 func TestV4PoolReadGateBindsReviewedManager(t *testing.T) {
-	pr := PoolReadSpec{Kind: "v4", Locator: bscV4Manager.Hex(), Manager: bscV4Manager.Hex(),
+	pr := PoolReadSpec{Kind: "v4", Locator: strings.ToLower(bscV4Manager.Hex()), Manager: strings.ToLower(bscV4Manager.Hex()),
 		PoolKey: crypto.Keccak256Hash(v4FeeKey(350)).Hex(), Hook: (common.Address{}).Hex(),
-		Token0: common.HexToAddress("0x0dE81Ca835EBBeCDeeD1Dbc15BE70bC134F0Bf3b").Hex(),
-		Token1: common.HexToAddress("0x55d398326f99059ff775485246999027b3197955").Hex(), TickSpacing: 4}
+		Token0: "0x0de81ca835ebbecdeed1dbc15be70bc134f0bf3b",
+		Token1: "0x55d398326f99059ff775485246999027b3197955", TickSpacing: 4}
 	if !validPoolRead(&pr) {
 		t.Fatal("verified v4 read shape rejected")
 	}
