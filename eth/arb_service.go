@@ -144,7 +144,10 @@ func (a *arbService) Start() error {
 	a.wg.Add(1)
 	go a.sweeper()
 	go func() { a.wg.Wait(); close(a.stopped) }()
-	log.Info("arb service started", "boot", a.boot, "workers", a.workers)
+	log.Info("arb service started", "boot", a.boot, "workers", a.workers, "window", arbWindowSetting.String())
+	if len(arbWindowSetting.Invalid) > 0 {
+		log.Warn("arb snapshot window env ignored (out of range)", "values", arbWindowSetting.Invalid)
+	}
 	return nil
 }
 

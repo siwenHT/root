@@ -332,44 +332,28 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 	readMap := func(mapBase *big.Int, key int64) ([]byte, error) {
 		return c.infinityStorageWord(manager, infinityNestedMappingSlot(key, common.BytesToHash(mapBase.Bytes())))
 	}
-	words := make([]InfinityBitmapWord, 0, 3)
-	ticks := make([]InfinityTickSnapshot, 0)
-	minTick, maxTick := int64(1<<31-1), int64(-1<<31)
-	for wi := int64(baseWord - 1); wi <= baseWord+1; wi++ {
-		if wi < -32768 || wi > 32767 {
-			continue
-		}
-		raw, rerr := readMap(bitmapBase, wi)
-		if rerr != nil {
-			return nil, rerr
-		}
-		bitmap, derr := arb.DecodeInfinityBitmap(raw)
-		if derr != nil {
-			return nil, derr
-		}
-		words = append(words, InfinityBitmapWord{Index: int16(wi), Value: bitmap})
-		lo, hi := wi*256*spacing, (wi*256+255)*spacing
-		if lo < minTick {
-			minTick = lo
-		}
-		if hi > maxTick {
-			maxTick = hi
-		}
-		for bit := int64(0); bit < 256; bit++ {
-			if bitmap.Bit(int(bit)) == 0 {
-				continue
+	words, ticks, minTick, maxTick, err := readSingletonWindow(baseWord, spacing, arbWindowSetting, singletonWindowReader{
+		bitmap: func(wi int64) (*big.Int, error) {
+			raw, rerr := readMap(bitmapBase, wi)
+			if rerr != nil {
+				return nil, rerr
 			}
-			tick64 := (wi*256 + bit) * spacing
+			return arb.DecodeInfinityBitmap(raw)
+		},
+		tick: func(tick64 int64) (InfinityTickSnapshot, error) {
 			traw, terr := readMap(tickBase, tick64)
 			if terr != nil {
-				return nil, terr
+				return InfinityTickSnapshot{}, terr
 			}
 			ti, derr := arb.DecodeInfinityTickStorage(traw)
 			if derr != nil {
-				return nil, derr
+				return InfinityTickSnapshot{}, derr
 			}
-			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
-		}
+			return InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet}, nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 	// Resolve only a verified no-hook key with symmetric protocol fees, read
 	// from this same parent/post-target StateDB. Unknown layouts stay unresolved.
@@ -430,50 +414,31 @@ func (c *poolCaller) readInfinityCL(manager common.Address, poolID common.Hash, 
 	if baseWord < -32768 || baseWord > 32767 {
 		return nil, errors.New("arb: infinity bitmap word out of range")
 	}
-	words := make([]InfinityBitmapWord, 0, 3)
-	ticks := make([]InfinityTickSnapshot, 0)
-	minTick := int64(1<<31 - 1)
-	maxTick := int64(-1 << 31)
-	for wi := int64(baseWord - 1); wi <= baseWord+1; wi++ {
-		if wi < -32768 || wi > 32767 {
-			continue
-		}
-		word := int16(wi)
-		raw, rerr := c.staticCall(manager, arb.CallInfinityGetBitmap(poolID, word))
-		if rerr != nil {
-			return nil, rerr
-		}
-		bitmap, derr := arb.DecodeInfinityBitmap(raw)
-		if derr != nil {
-			return nil, derr
-		}
-		words = append(words, InfinityBitmapWord{Index: word, Value: bitmap})
-		lo := (wi * 256) * spacing
-		hi := (wi*256 + 255) * spacing
-		if lo < minTick {
-			minTick = lo
-		}
-		if hi > maxTick {
-			maxTick = hi
-		}
-		for bit := int64(0); bit < 256; bit++ {
-			if bitmap.Bit(int(bit)) == 0 {
-				continue
+	words, ticks, minTick, maxTick, err := readSingletonWindow(baseWord, spacing, arbWindowSetting, singletonWindowReader{
+		bitmap: func(wi int64) (*big.Int, error) {
+			raw, rerr := c.staticCall(manager, arb.CallInfinityGetBitmap(poolID, int16(wi)))
+			if rerr != nil {
+				return nil, rerr
 			}
-			tick64 := (wi*256 + bit) * spacing
+			return arb.DecodeInfinityBitmap(raw)
+		},
+		tick: func(tick64 int64) (InfinityTickSnapshot, error) {
 			if tick64 < -8388608 || tick64 > 8388607 {
-				return nil, errors.New("arb: infinity tick out of range")
+				return InfinityTickSnapshot{}, errors.New("arb: infinity tick out of range")
 			}
 			traw, terr := c.staticCall(manager, arb.CallInfinityGetTick(poolID, int32(tick64)))
 			if terr != nil {
-				return nil, terr
+				return InfinityTickSnapshot{}, terr
 			}
 			ti, derr := arb.DecodeInfinityTickInfo(traw)
 			if derr != nil {
-				return nil, derr
+				return InfinityTickSnapshot{}, derr
 			}
-			ticks = append(ticks, InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet})
-		}
+			return InfinityTickSnapshot{Index: int32(tick64), LiquidityGross: ti.LiquidityGross, LiquidityNet: ti.LiquidityNet}, nil
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 	if minTick > maxTick {
 		minTick, maxTick = int64(slot.Tick), int64(slot.Tick)

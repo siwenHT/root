@@ -79,10 +79,14 @@ func readV3Window(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte
 	}
 	step := spacing.Int64()
 	base := floorDiv(floorDiv(tick, step), 256)
-	first, last := base-2, base+2
+	cfg := arbWindowSetting
+	radius := cfg.V3Radius
+	first, last := base-radius, base+radius
 	if first < -32768 || last > 32767 {
 		return arb.PoolSnapshot{}, errors.New("arb: v3 word range invalid")
 	}
+	bitmaps := make([]*big.Int, 0, last-first+1)
+	wordTicks := make(map[int64][]int64, last-first+1)
 	indices := make([]int64, 0)
 	for word := first; word <= last; word++ {
 		raw, err := call(v3ViewCall("tickBitmap(int16)", &word))
@@ -93,16 +97,18 @@ func readV3Window(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte
 			return arb.PoolSnapshot{}, errors.New("arb: v3 bitmap width invalid")
 		}
 		bitmap := new(big.Int).SetBytes(raw)
-		snap.BitmapWords = append(snap.BitmapWords, arb.InfinityBitmapWord{Index: strconv.FormatInt(word, 10), Value: bitmap.String()})
+		bitmaps = append(bitmaps, bitmap)
 		for bit := int64(0); bit < 256; bit++ {
 			index := (word*256 + bit) * step
 			if bitmap.Bit(int(bit)) != 0 && index >= -887272 && index <= 887272 {
 				indices = append(indices, index)
+				wordTicks[word] = append(wordTicks[word], index)
 			}
 		}
 	}
-	// Bound EVM reads to the nearest 16 initialized ticks on either side, while
-	// retaining the real bitmap so clients stop with CacheMiss beyond coverage.
+	// Bound EVM reads to the nearest N initialized ticks on either side (legacy
+	// N=16), while retaining the real bitmap so clients stop with CacheMiss
+	// beyond coverage.
 	sort.Slice(indices, func(i, j int) bool {
 		a, b := indices[i]-tick, indices[j]-tick
 		if a < 0 {
@@ -116,15 +122,18 @@ func readV3Window(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte
 		}
 		return a < b
 	})
+	perSide := cfg.V3TicksPerSide
 	lower, upper := 0, 0
+	read := make(map[int64]arb.InfinityTick, 2*perSide)
+	ordered := make([]int64, 0, 2*perSide)
 	for _, index := range indices {
 		if index <= tick {
-			if lower >= 16 {
+			if lower >= perSide {
 				continue
 			}
 			lower++
 		} else {
-			if upper >= 16 {
+			if upper >= perSide {
 				continue
 			}
 			upper++
@@ -137,10 +146,43 @@ func readV3Window(snap arb.PoolSnapshot, expectedSpacing int32, call func([]byte
 		if err != nil {
 			return arb.PoolSnapshot{}, err
 		}
-		snap.InitializedTicks = append(snap.InitializedTicks, arb.InfinityTick{Index: strconv.FormatInt(index, 10), LiquidityGross: ti.LiquidityGross.String(), LiquidityNet: ti.LiquidityNet.String()})
+		read[index] = arb.InfinityTick{Index: strconv.FormatInt(index, 10), LiquidityGross: ti.LiquidityGross.String(), LiquidityNet: ti.LiquidityNet.String()}
+		ordered = append(ordered, index)
 	}
-	snap.CoverageMinTick = strconv.FormatInt(first*256*step, 10)
-	snap.CoverageMaxTick = strconv.FormatInt((last+1)*256*step-1, 10)
+	// Legacy words (base?2, or fewer if the radius is narrower) are always
+	// published, exactly as before. An extended word is published only if every
+	// initialized tick in it, and in every word between it and the legacy
+	// window, was read; the first incomplete word ends that side.
+	inner := radius
+	if inner > legacyV3WindowRadius {
+		inner = legacyV3WindowRadius
+	}
+	complete := func(word int64) bool {
+		for _, index := range wordTicks[word] {
+			if _, ok := read[index]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+	emitLo, emitHi := base-inner, base+inner
+	for word := base - inner - 1; word >= first && complete(word); word-- {
+		emitLo = word
+	}
+	for word := base + inner + 1; word <= last && complete(word); word++ {
+		emitHi = word
+	}
+	for word := emitLo; word <= emitHi; word++ {
+		snap.BitmapWords = append(snap.BitmapWords, arb.InfinityBitmapWord{Index: strconv.FormatInt(word, 10), Value: bitmaps[word-first].String()})
+	}
+	minIndex, maxIndex := emitLo*256*step, (emitHi+1)*256*step-1
+	for _, index := range ordered {
+		if index >= minIndex && index <= maxIndex {
+			snap.InitializedTicks = append(snap.InitializedTicks, read[index])
+		}
+	}
+	snap.CoverageMinTick = strconv.FormatInt(minIndex, 10)
+	snap.CoverageMaxTick = strconv.FormatInt(maxIndex, 10)
 	return snap, nil
 }
 
