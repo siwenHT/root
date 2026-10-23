@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/forkid"
@@ -163,7 +164,10 @@ func (p *NewBlockHashesPacket) Unpack() ([]common.Hash, []uint64) {
 // TransactionsPacket is the network packet for broadcasting new transactions.
 type TransactionsPacket struct {
 	rlp.RawList[*types.Transaction]
+	receivedAt time.Time // local metadata, excluded from RLP
 }
+
+func (p *TransactionsPacket) ReceivedAt() time.Time { return p.receivedAt }
 
 // GetBlockHeadersRequest represents a block header query.
 type GetBlockHeadersRequest struct {
@@ -359,9 +363,12 @@ type PooledTransactionsResponse []*types.Transaction
 // PooledTransactionsPacket is the network packet for transaction distribution
 // with request ID wrapping.
 type PooledTransactionsPacket struct {
-	RequestId uint64
-	List      rlp.RawList[*types.Transaction]
+	RequestId  uint64
+	List       rlp.RawList[*types.Transaction]
+	receivedAt time.Time // local metadata, excluded from RLP
 }
+
+func (p *PooledTransactionsPacket) ReceivedAt() time.Time { return p.receivedAt }
 
 // PooledTransactionsRLPResponse is the network packet for transaction distribution, used
 // in the cases we already have them in rlp-encoded form

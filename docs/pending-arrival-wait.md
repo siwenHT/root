@@ -1,5 +1,9 @@
 # Pending announcement grace period
 
+For the later local implementation that measures each boundary without changing
+this wait, see [pending notification timing](pending-timing.md). Its deployment
+status is separate from the historical trial below.
+
 The node waits 200 ms after a non-blob transaction hash announcement before
 requesting its body, allowing ordinary broadcasts to arrive first. On 2026-09-28,
 a 20-second read-only probe matched announcements to 2027 accepted transactions;

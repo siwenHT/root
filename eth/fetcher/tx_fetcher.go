@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -244,6 +245,9 @@ func NewTxFetcherForTests(
 // Notify announces the fetcher of the potential availability of a new batch of
 // transactions in the network.
 func (f *TxFetcher) Notify(peer string, types []byte, sizes []uint32, hashes []common.Hash) error {
+	for _, hash := range hashes {
+		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_announce", Source: "hash_announce"}, f.realTime())
+	}
 	// Keep track of all the announced transactions
 	txAnnounceInMeter.Mark(int64(len(hashes)))
 
@@ -549,6 +553,7 @@ func (f *TxFetcher) loop() {
 					hasBlob = true
 					f.waittime[hash] = f.clock.Now() - mclock.AbsTime(f.arriveTimeout)
 				}
+				pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_wait_begin", Operation: uint64(f.waittime[hash]), WaitUS: f.arriveTimeout.Microseconds(), SlackUS: f.arriveSlack.Microseconds()}, f.realTime())
 				if waitslots := f.waitslots[ann.origin]; waitslots != nil {
 					waitslots[hash] = &txMetadataWithSeq{
 						txMetadata: ann.metas[i],
@@ -579,6 +584,7 @@ func (f *TxFetcher) loop() {
 			actives := make(map[string]struct{})
 			for hash, instance := range f.waittime {
 				if time.Duration(f.clock.Now()-instance)+f.arriveSlack > f.arriveTimeout {
+					pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_wait_end", Operation: uint64(instance), WaitUS: f.arriveTimeout.Microseconds(), SlackUS: f.arriveSlack.Microseconds()}, f.realTime())
 					// Transaction expired without propagation, schedule for retrieval
 					if f.announced[hash] != nil {
 						panic("announce tracker already contains waitlist item")
@@ -986,14 +992,28 @@ func (f *TxFetcher) scheduleFetches(timer *mclock.Timer, timeout chan struct{}, 
 		// If any hashes were allocated, request them from the peer
 		if len(hashes) > 0 {
 			f.requests[peer] = &txRequest{hashes: hashes, time: f.clock.Now()}
+			requestID := pendingtrace.NextID()
+			for _, hash := range hashes {
+				pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_request_queued", Operation: requestID}, f.realTime())
+			}
 			txRequestOutMeter.Mark(int64(len(hashes)))
 			p := peer
 			gopool.Submit(func() {
+				for _, hash := range hashes {
+					pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_request_begin", Operation: requestID}, f.realTime())
+				}
 				// Try to fetch the transactions, but in case of a request
 				// failure (e.g. peer disconnected), reschedule the hashes.
 				if err := f.fetchTxs(p, hashes); err != nil {
+					for _, hash := range hashes {
+						pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_request_end", Operation: requestID, Outcome: "error"}, f.realTime())
+					}
 					txRequestFailMeter.Mark(int64(len(hashes)))
 					f.Drop(p)
+				} else {
+					for _, hash := range hashes {
+						pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_request_end", Operation: requestID, Outcome: "ok"}, f.realTime())
+					}
 				}
 			})
 		}

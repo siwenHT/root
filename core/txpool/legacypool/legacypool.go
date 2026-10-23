@@ -963,6 +963,9 @@ func (pool *LegacyPool) addRemoteSync(tx *types.Transaction) error {
 // Note, if sync is set the method will block until all internal maintenance
 // related to the add is finished. Only use this during tests for determinism.
 func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
+	trace := tracePendingPool(txs)
+	trace.mark("legacy_add_begin", trace.now())
+	defer func() { trace.mark("legacy_add_end", trace.now()) }()
 	// Filter out known ones without obtaining the pool lock or recovering signatures
 	var (
 		errs = make([]error, len(txs))
@@ -992,9 +995,16 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 	}
 
 	// Process all the new transaction and merge any errors into the original slice
+	lockWaiting := trace.now()
 	pool.mu.Lock()
+	lockAcquired := trace.now()
 	newErrs, dirtyAddrs := pool.addTxsLocked(news)
 	pool.mu.Unlock()
+	lockReleased := trace.now()
+	// Publish after unlocking so diagnostic readers cannot extend the pool lock.
+	trace.mark("legacy_lock_wait", lockWaiting)
+	trace.mark("legacy_lock_acquired", lockAcquired)
+	trace.mark("legacy_lock_released", lockReleased)
 
 	var nilSlot = 0
 	for _, err := range newErrs {
@@ -1005,7 +1015,10 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 		nilSlot++
 	}
 	// Reorg the pool internals if needed and return
+	promoteBegin := trace.now()
 	done := pool.requestPromoteExecutables(dirtyAddrs)
+	trace.mark("legacy_promote_begin", promoteBegin)
+	trace.mark("legacy_promote_scheduled", trace.now())
 	if sync {
 		<-done
 	}
@@ -1352,7 +1365,12 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		for _, set := range events {
 			txs = append(txs, set.Flatten()...)
 		}
+		trace := tracePendingPool(txs)
+		begin := trace.now()
 		pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
+		end := trace.now()
+		trace.mark("feed_emit_begin", begin)
+		trace.mark("feed_emit_end", end)
 	}
 }
 

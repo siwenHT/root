@@ -23,6 +23,7 @@ import (
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -606,6 +607,7 @@ func handleNewPooledTransactionHashes(backend Backend, msg Decoder, peer *Peer) 
 	}
 	// Schedule all the unknown hashes for retrieval
 	for _, hash := range ann.Hashes {
+		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "hash_received", Source: "hash_announce"}, msg.Time())
 		peer.MarkTransaction(hash)
 	}
 	return backend.Handle(peer, ann)
@@ -657,6 +659,7 @@ func handleTransactions(backend Backend, msg Decoder, peer *Peer) error {
 	if txs.Len() > maxTransactionAnnouncements {
 		return fmt.Errorf("too many transactions")
 	}
+	txs.receivedAt = msg.Time()
 	return backend.Handle(peer, &txs)
 }
 
@@ -680,6 +683,7 @@ func handlePooledTransactions(backend Backend, msg Decoder, peer *Peer) error {
 		return fmt.Errorf("PooledTransactions: %w", err)
 	}
 
+	resp.receivedAt = msg.Time()
 	return backend.Handle(peer, &resp)
 }
 

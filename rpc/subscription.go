@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 )
 
 var (
@@ -105,9 +107,14 @@ type Notifier struct {
 
 	mu           sync.Mutex
 	sub          *Subscription
-	buffer       []any
+	buffer       []bufferedNotification
 	callReturned bool
 	activated    bool
+}
+
+type bufferedNotification struct {
+	data  any
+	trace *pendingtrace.Attempt
 }
 
 // CreateSubscription returns a new subscription that is coupled to the
@@ -130,8 +137,24 @@ func (n *Notifier) CreateSubscription() *Subscription {
 // Notify sends a notification to the client with the given data as payload.
 // If an error occurs the RPC connection is closed and the error is returned.
 func (n *Notifier) Notify(id ID, data any) error {
+	return n.NotifyWithContext(context.Background(), id, data)
+}
+
+// NotifyWithContext carries diagnostic correlation only. It does not change
+// transport cancellation, deadlines, activation buffering or the wire payload.
+func (n *Notifier) NotifyWithContext(ctx context.Context, id ID, data any) (err error) {
+	trace := pendingtrace.FromContext(ctx)
+	trace.Mark("notify_begin", "")
+	defer func() {
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+		}
+		trace.Mark("notify_return", outcome)
+	}()
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	trace.Mark("notify_lock_acquired", "")
 
 	if n.sub == nil {
 		panic("can't Notify before subscription is created")
@@ -139,9 +162,10 @@ func (n *Notifier) Notify(id ID, data any) error {
 		panic("Notify with wrong ID")
 	}
 	if n.activated {
-		return n.send(n.sub, data)
+		return n.send(n.sub, data, trace)
 	}
-	n.buffer = append(n.buffer, data)
+	n.buffer = append(n.buffer, bufferedNotification{data: data, trace: trace})
+	trace.Mark("notify_buffered", "buffered")
 	return nil
 }
 
@@ -162,7 +186,7 @@ func (n *Notifier) activate() error {
 	defer n.mu.Unlock()
 
 	for _, data := range n.buffer {
-		if err := n.send(n.sub, data); err != nil {
+		if err := n.send(n.sub, data.data, data.trace); err != nil {
 			return err
 		}
 	}
@@ -170,7 +194,7 @@ func (n *Notifier) activate() error {
 	return nil
 }
 
-func (n *Notifier) send(sub *Subscription, data any) error {
+func (n *Notifier) send(sub *Subscription, data any, trace *pendingtrace.Attempt) error {
 	msg := jsonrpcSubscriptionNotification{
 		Version: vsn,
 		Method:  n.namespace + notificationMethodSuffix,
@@ -179,7 +203,14 @@ func (n *Notifier) send(sub *Subscription, data any) error {
 			Result: data,
 		},
 	}
-	return n.h.conn.writeJSON(context.Background(), &msg, false)
+	trace.Mark("codec_write_begin", "")
+	err := n.h.conn.writeJSON(context.Background(), &msg, false)
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+	}
+	trace.Mark("codec_write_end", outcome)
+	return err
 }
 
 // A Subscription is created by a notifier and tied to that notifier. The client can use
