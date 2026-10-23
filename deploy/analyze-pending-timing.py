@@ -104,6 +104,13 @@ def analyze(pages):
         if "request_to_body_us" in ingress_metrics and (len(bodies) != 1 or bodies[0].get("source") != "request_reply"):
             ingress_metrics["request_to_body_us"] = None
             ingress_issues.append("request_to_body_us:not_a_unique_request_reply")
+        if gaps.get(boot) or page_loss[boot]:
+            # Cross-operation matching relies on uniqueness. An evicted second
+            # request/body/admission could make the retained endpoints look unique.
+            for name, value in ingress_metrics.items():
+                if value is not None:
+                    ingress_metrics[name] = None
+                    ingress_issues.append(name + ":retention_gap_prevents_unique_match")
         row = {"boot_id": boot, "hash": hash_value, "operations": [], "attempts": [],
                "ingress_metrics_us": ingress_metrics, "ingress_issues": ingress_issues,
                "observed_stages": dict(Counter(e["stage"] for e in events)),

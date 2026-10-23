@@ -88,6 +88,29 @@ class PendingTimingTests(unittest.TestCase):
         self.assertEqual(len(row["unattempted_outcomes"]), 2)
         self.assertEqual(row["observed_stages"]["queued_cancelled"], 1)
 
+    def test_retention_loss_prevents_cross_operation_unique_matching(self):
+        # An evicted duplicate receive/request could make these endpoints look
+        # unique. Independent operation IDs still make a retained pair usable.
+        events = [self.event(1, "body_received", 10, operation=1),
+                  self.event(3, "pool_add_begin", 30, operation=2),
+                  self.event(4, "pool_add_end", 40, operation=2)]
+        for pages in ([self.page(events)],
+                      [self.page([dict(e, sequence=i + 1) for i, e in enumerate(events)], lost=8)]):
+            with self.subTest(pages=pages):
+                report = timing.analyze(pages)
+                self.assertNotIn("body_to_pool_begin_us", report["summary_us"])
+                self.assertIsNone(report["records"][0]["ingress_metrics_us"]["body_to_pool_begin_us"])
+                self.assertEqual(report["summary_us"]["pool_add_us"]["p50"], 10)
+
+    def test_cursor_loss_is_not_summed_across_repeated_pages(self):
+        first = self.page([self.event(5, "pool_add_begin", 10)], lost=4)
+        second = self.page([self.event(8, "pool_add_end", 30)], lost=2)
+        report = timing.analyze([first, first, second, second])
+        self.assertEqual(report["unique_events"], 2)
+        self.assertEqual(report["reported_cursor_loss_max_by_boot"], {"boot-1": 4})
+        self.assertEqual(report["internal_sequence_gaps_by_boot"], {"boot-1": 2})
+        self.assertEqual(report["summary_us"]["pool_add_us"]["p50"], 20)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -62,4 +63,46 @@ func TestPendingTimingSeparatesAnnouncementWaitAndRequestScheduling(t *testing.T
 	if queued.Operation == 0 || queued.Operation != started.Operation || started.Operation != finished.Operation || finished.Outcome != "ok" {
 		t.Fatalf("request scheduling lost correlation: %+v", stages)
 	}
+}
+
+func TestPendingTimingRetainsRequestFailure(t *testing.T) {
+	clock := new(mclock.Simulated)
+	base := time.Now()
+	f := NewTxFetcherForTests(func(common.Hash) bool { return false }, nil,
+		func(string, []common.Hash) error { return errors.New("peer disconnected") }, nil,
+		clock, func() time.Time { return base.Add(time.Duration(clock.Now())) }, nil)
+	step := make(chan struct{})
+	f.step = step
+	f.Start()
+	defer f.Stop()
+	hash := common.Hash{0, 0xa2}
+	before := pendingtrace.Snapshot(math.MaxUint64, 1).Latest
+	if err := f.Notify("peer", []byte{types.LegacyTxType}, []uint32{100}, []common.Hash{hash}); err != nil {
+		t.Fatal(err)
+	}
+	<-step
+	clock.Run(200 * time.Millisecond)
+	<-step
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var begin, end pendingtrace.Event
+		for _, e := range pendingtrace.Snapshot(before, pendingtrace.MaxPage).Events {
+			if e.Hash == hash {
+				switch e.Stage {
+				case "fetch_request_begin":
+					begin = e
+				case "fetch_request_end":
+					end = e
+				}
+			}
+		}
+		if end.Sequence != 0 {
+			if begin.Operation == 0 || begin.Operation != end.Operation || end.Outcome != "error" {
+				t.Fatalf("request failure lost its operation/outcome: %+v %+v", begin, end)
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("failed request has no completion evidence")
 }

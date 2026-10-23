@@ -5,6 +5,8 @@ This change only records evidence. The 200 ms announcement grace period, 50 ms
 gather slack, txpool validation/promotion, 128-batch subscription channel,
 24 simulation slots, result filtering and notification payloads are unchanged.
 No production configuration or running process has been changed.
+Pre-release review and build-identity verification:
+[2026-10-23 review](pending-timing-preflight-20261023.md).
 
 ## What the boundaries mean
 
@@ -54,6 +56,12 @@ next cursor, converted to hexadecimal for the RPC argument. `oldest_sequence`,
 Reset the cursor if `boot_id` changes. Reading never clears or changes the ring.
 It uses the existing debug namespace; there is no new listener or subscription.
 
+`overwritten` is cumulative for this boot, including events before a capture.
+`lost_since_cursor` counts unavailable events after the supplied cursor; repeated
+reads can report the same loss. Neither is a transaction-loss count. The analyzer
+reports the maximum reported cursor loss and gaps between unique saved sequences
+separately, without summing overlapping pages or claiming a total capture loss.
+
 Sequence orders insertion, **not event time**: pool-lock/feed boundaries can be
 published after the operation. Use monotonic time for same-process durations,
 and wall time only to join the existing Rust `received` evidence. Collect failed,
@@ -81,6 +89,9 @@ null, never zero. Pre-batch delay is computed only for a unique subscription
 delivery with retained ingress/firstSeen evidence and no reported gaps;
 repeated feeds remain explicitly unknown. Overlapping spans must not be summed.
 Absence of a write or simulation-state boundary is not evidence of zero delay.
+Known retention gaps also make cross-operation ingress matches unknown, since
+an evicted duplicate could make the remaining boundaries look unique. Retained
+endpoints sharing an operation/attempt ID can still establish their own span.
 
 ## Local validation
 

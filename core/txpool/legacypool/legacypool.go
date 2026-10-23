@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
@@ -994,17 +995,27 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 		return errs
 	}
 
+	// Only transactions reaching addTxsLocked share this mutex/promotion span.
+	// Preserve the admission ID, including when other batch entries were rejected.
+	lockTrace := pendingPoolTrace{id: trace.id}
+	if trace.id != 0 {
+		for _, tx := range news {
+			if hash := tx.Hash(); pendingtrace.Sampled(hash) {
+				lockTrace.hashes = append(lockTrace.hashes, hash)
+			}
+		}
+	}
 	// Process all the new transaction and merge any errors into the original slice
-	lockWaiting := trace.now()
+	lockWaiting := lockTrace.now()
 	pool.mu.Lock()
-	lockAcquired := trace.now()
+	lockAcquired := lockTrace.now()
 	newErrs, dirtyAddrs := pool.addTxsLocked(news)
 	pool.mu.Unlock()
-	lockReleased := trace.now()
+	lockReleased := lockTrace.now()
 	// Publish after unlocking so diagnostic readers cannot extend the pool lock.
-	trace.mark("legacy_lock_wait", lockWaiting)
-	trace.mark("legacy_lock_acquired", lockAcquired)
-	trace.mark("legacy_lock_released", lockReleased)
+	lockTrace.mark("legacy_lock_wait", lockWaiting)
+	lockTrace.mark("legacy_lock_acquired", lockAcquired)
+	lockTrace.mark("legacy_lock_released", lockReleased)
 
 	var nilSlot = 0
 	for _, err := range newErrs {
@@ -1015,10 +1026,10 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 		nilSlot++
 	}
 	// Reorg the pool internals if needed and return
-	promoteBegin := trace.now()
+	promoteBegin := lockTrace.now()
 	done := pool.requestPromoteExecutables(dirtyAddrs)
-	trace.mark("legacy_promote_begin", promoteBegin)
-	trace.mark("legacy_promote_scheduled", trace.now())
+	lockTrace.mark("legacy_promote_begin", promoteBegin)
+	lockTrace.mark("legacy_promote_scheduled", lockTrace.now())
 	if sync {
 		<-done
 	}

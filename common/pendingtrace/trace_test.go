@@ -83,6 +83,36 @@ func TestConcurrentRingReadersAndWriters(t *testing.T) {
 	}
 }
 
+func TestCursorLossIsPerReadAndOverwrittenIsCumulative(t *testing.T) {
+	start := time.Now()
+	r := newRecorder(3, start)
+	for i := 1; i <= 5; i++ {
+		r.recordAt(Event{}, start.Add(time.Duration(i)*time.Microsecond))
+	}
+	first := r.snapshot(0, 1)
+	if first.Next != 3 || first.Lost != 2 || first.Overwritten != 2 {
+		t.Fatalf("wrong first overrun: %+v", first)
+	}
+	for i := 6; i <= 9; i++ {
+		r.recordAt(Event{}, start.Add(time.Duration(i)*time.Microsecond))
+	}
+	overrun := r.snapshot(first.Next, 2)
+	if overrun.Oldest != 7 || overrun.Next != 8 || overrun.Lost != 3 || overrun.Overwritten != 6 {
+		t.Fatalf("wrong second overrun: %+v", overrun)
+	}
+	if again := r.snapshot(first.Next, 2); again.Lost != overrun.Lost || again.Overwritten != overrun.Overwritten {
+		t.Fatal("re-reading changed loss counters")
+	}
+	drained := r.snapshot(overrun.Next, 2)
+	if drained.Next != 9 || drained.Lost != 0 || drained.Overwritten != 6 {
+		t.Fatalf("past eviction was counted as new capture loss: %+v", drained)
+	}
+	empty := r.snapshot(drained.Next, 2)
+	if len(empty.Events) != 0 || empty.Next != 9 || empty.Lost != 0 {
+		t.Fatalf("drained cursor did not remain stable: %+v", empty)
+	}
+}
+
 func TestAttemptCorrelationAndOverlap(t *testing.T) {
 	before := Snapshot(math.MaxUint64, 1).Latest
 	hash := common.Hash{0, 0x91}

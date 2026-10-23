@@ -25,12 +25,19 @@ func TestPendingTimingMeasuresActualPoolMutexWait(t *testing.T) {
 			break
 		}
 	}
+	var invalid *types.Transaction
+	for nonce := uint64(1); ; nonce++ {
+		invalid = types.NewTx(&types.LegacyTx{Nonce: nonce, Gas: 21000, GasPrice: big.NewInt(1)})
+		if pendingtrace.Sampled(invalid.Hash()) {
+			break
+		}
+	}
 	before := pendingtrace.Snapshot(math.MaxUint64, 1).Latest
 	done := make(chan []error, 1)
 	func() {
 		pool.mu.Lock()
 		defer pool.mu.Unlock()
-		go func() { done <- pool.Add([]*types.Transaction{tx}, false) }()
+		go func() { done <- pool.Add([]*types.Transaction{invalid, tx}, false) }()
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
 			for _, e := range pendingtrace.Snapshot(before, pendingtrace.MaxPage).Events {
@@ -45,14 +52,17 @@ func TestPendingTimingMeasuresActualPoolMutexWait(t *testing.T) {
 	}()
 	select {
 	case errs := <-done:
-		if len(errs) != 1 || errs[0] != nil {
-			t.Fatalf("valid transaction outcome changed: %v", errs)
+		if len(errs) != 2 || errs[0] == nil || errs[1] != nil {
+			t.Fatalf("mixed admission outcomes changed: %v", errs)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("Add remained blocked after mutex release")
 	}
 	stages := make(map[string]pendingtrace.Event)
 	for _, e := range pendingtrace.Snapshot(before, pendingtrace.MaxPage).Events {
+		if e.Hash == invalid.Hash() && (e.Stage == "legacy_lock_wait" || e.Stage == "legacy_lock_acquired" || e.Stage == "legacy_lock_released" || e.Stage == "legacy_promote_begin" || e.Stage == "legacy_promote_scheduled") {
+			t.Fatalf("pre-validation rejection inherited another transaction's lock/promotion span: %+v", e)
+		}
 		if e.Hash == tx.Hash() {
 			stages[e.Stage] = e
 		}

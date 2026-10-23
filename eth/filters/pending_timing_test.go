@@ -2,6 +2,7 @@ package filters
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sync/atomic"
 	"testing"
@@ -210,5 +211,77 @@ func TestPendingTimingSeparatesSubscribersAndRetainsCancellation(t *testing.T) {
 	}
 	if len(subs) != 2 || cancelled == 0 || written == 0 || cancelled == written {
 		t.Fatalf("subscriber attempts or cancellation were merged: %+v", events)
+	}
+}
+
+func TestPendingTimingRetainsSimulationFailureOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		receipt *types.Receipt
+		err     error
+	}{
+		{"error", nil, errors.New("simulation failed")},
+		{"no_receipt", nil, nil},
+		{"reverted", &types.Receipt{Status: types.ReceiptStatusFailed}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, notifications, _ := pendingPipelineClient(t, func(context.Context, *types.Transaction) (*types.Receipt, error) {
+				return tc.receipt, tc.err
+			})
+			tx := sampledPendingTx(40000)
+			before := pendingtrace.Snapshot(math.MaxUint64, 1).Latest
+			b.txFeed.Send(core.NewTxsEvent{Txs: []*types.Transaction{tx}})
+			stages := make(map[string]pendingtrace.Event)
+			for _, e := range waitTimingStage(t, before, tx.Hash(), "simulation_result_dequeued") {
+				stages[e.Stage] = e
+			}
+			finished, result := stages["simulation_finished"], stages["simulation_result_dequeued"]
+			if finished.Outcome != tc.name || result.Outcome != tc.name || finished.Attempt == 0 || finished.Attempt != result.Attempt {
+				t.Fatalf("failed simulation lost its outcome/correlation: %+v", stages)
+			}
+			for _, stage := range []string{"payload_build_begin", "notify_begin", "codec_write_begin", "codec_write_end"} {
+				if stages[stage].Sequence != 0 {
+					t.Fatalf("failed simulation reached notification: %+v", stages)
+				}
+			}
+			select {
+			case <-notifications:
+				t.Fatal("failed simulation was delivered")
+			default:
+			}
+		})
+	}
+}
+
+func TestPendingTimingRetainsUnscheduledCancellation(t *testing.T) {
+	started := make(chan struct{}, 24)
+	b, _, sub := pendingPipelineClient(t, func(ctx context.Context, _ *types.Transaction) (*types.Receipt, error) {
+		started <- struct{}{}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	var batch []*types.Transaction
+	for n := uint64(1); n <= 24; n++ {
+		batch = append(batch, pendingPipelineTx(n))
+	}
+	target := sampledPendingTx(50000)
+	batch = append(batch, target)
+	before := pendingtrace.Snapshot(math.MaxUint64, 1).Latest
+	b.txFeed.Send(core.NewTxsEvent{Txs: batch})
+	for n := 0; n < 24; n++ {
+		select {
+		case <-started:
+		case <-time.After(3 * time.Second):
+			t.Fatal("simulation slots did not fill")
+		}
+	}
+	sub.Unsubscribe()
+	stages := make(map[string]pendingtrace.Event)
+	for _, e := range waitTimingStage(t, before, target.Hash(), "queued_cancelled") {
+		stages[e.Stage] = e
+	}
+	queued, cancelled := stages["subscriber_batch_dequeued"], stages["queued_cancelled"]
+	if queued.Operation == 0 || queued.Operation != cancelled.Operation || queued.Subscription != cancelled.Subscription || cancelled.Attempt != 0 || stages["simulation_started"].Sequence != 0 {
+		t.Fatalf("unscheduled cancellation was merged with a running attempt: %+v", stages)
 	}
 }
