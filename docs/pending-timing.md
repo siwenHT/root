@@ -1,10 +1,18 @@
-# Pending notification timing (local implementation, not deployed)
+# Pending notification timing
 
 Based on production source commit `a919c9a49290531f63b20564342a90e019a21ae2`.
 This change only records evidence. The 200 ms announcement grace period, 50 ms
 gather slack, txpool validation/promotion, 128-batch subscription channel,
 24 simulation slots, result filtering and notification payloads are unchanged.
-No production configuration or running process has been changed.
+The production node restarted on 2026-10-23 at 19:34 China time; acceptance
+completed at 19:41. The running
+source is `3e2e7782edb4e3a7fdd4cd8896f8b072f089bac9`; the server-built ELF
+SHA256 is
+`6d8c976399c6e4baab54a2b4a76e2141ae724460a87628c22a5de3b5dc8fb6bf`.
+Configuration and timing/concurrency settings were unchanged. See the dated
+[release acceptance record](pending-timing-release-20261023.json) for process,
+reconnection, rollback and sampling evidence. This is a historical release
+record; query the live process to establish its current version.
 Pre-release review and build-identity verification:
 [2026-10-23 review](pending-timing-preflight-20261023.md).
 
@@ -67,11 +75,13 @@ published after the operation. Use monotonic time for same-process durations,
 and wall time only to join the existing Rust `received` evidence. Collect failed,
 reverted, skipped and cancelled records as well as successful notifications.
 
-After a separately authorized release, a five-minute capture can page the RPC
+For a steady-state diagnosis, a five-minute capture can page the RPC
 through the existing IPC connection and save complete responses as JSONL. Start
 from a recorded cursor, drain outstanding attempts, retain all gap counters and
 join hashes to Rust receipt/first-vs-retry evidence. No such production capture
-or release was performed for this implementation.
+was performed during implementation. The authorized production rollout later
+collected a separate 30-second acceptance sample; it does not establish a
+steady-state bottleneck.
 
 Analyze saved pages locally:
 

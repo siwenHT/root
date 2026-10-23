@@ -1,0 +1,168 @@
+{
+  "recorded_utc": "2026-10-23T11:41:22.437261+00:00",
+  "status": "production_release_verified",
+  "production_source_commit": "3e2e7782edb4e3a7fdd4cd8896f8b072f089bac9",
+  "production_source_tree": "cf147797d84a7af5e6f06ca297f6477d669986b6",
+  "production_elf_sha256": "6d8c976399c6e4baab54a2b4a76e2141ae724460a87628c22a5de3b5dc8fb6bf",
+  "binary_path": "/home/bsc/fullnode/geth",
+  "build_repository": "/home/bsc/codex_stage/arb-node-build",
+  "build_branch": "main",
+  "build_tags": "urfave_cli_no_docs,ckzg",
+  "build_go": "1.25.0",
+  "embedded_vcs_modified": false,
+  "previous_source_commit": "a919c9a49290531f63b20564342a90e019a21ae2",
+  "previous_elf_sha256": "9dee1323ba951d78b183d37ceb6f45a98748a58361c68ce9bcffc36bb0f6d5e4",
+  "rollback_binary": "/home/bsc/fullnode/geth.prev",
+  "rollback_used": false,
+  "old_node_pid": 1145418,
+  "new_node_pid": 1048706,
+  "signal_utc": "2026-10-23T11:34:18.363992+00:00",
+  "ready_utc": "2026-10-23T11:34:42.442900+00:00",
+  "graceful_shutdown_seconds": 3.001643592491746,
+  "new_startup_readiness_seconds": 21.028578041121364,
+  "normal_shutdown": "SIGINT; process exited; no SIGKILL; database reopened and head advanced",
+  "config_and_start_script_unchanged": true,
+  "node_tuning_unchanged": {
+    "ARB_V3_CACHE_MODE": "on"
+  },
+  "announcement_wait_override": null,
+  "announcement_wait_default_ms": 200,
+  "final_rpc": {
+    "web3_clientVersion": "Geth/v1.7.8-3e2e7782-20261023/linux-amd64/go1.25.0",
+    "eth_syncing": false,
+    "eth_blockNumber": "0x7b5333c",
+    "net_peerCount": "0x59",
+    "eth_chainId": "0x38"
+  },
+  "final_engine_status": [
+    {
+      "utc": "2026-10-23T11:40:44Z",
+      "connected": true,
+      "paused": false,
+      "sent": 13,
+      "audit_dropped": 0,
+      "heads_processed": 3640,
+      "heads_enqueued": 4209,
+      "builds_started": 3370,
+      "pending_received": 238808,
+      "pending_builds": 44529
+    },
+    {
+      "utc": "2026-10-23T11:41:14Z",
+      "connected": true,
+      "paused": false,
+      "sent": 13,
+      "audit_dropped": 0,
+      "heads_processed": 3707,
+      "heads_enqueued": 4276,
+      "builds_started": 3417,
+      "pending_received": 243608,
+      "pending_builds": 45274
+    }
+  ],
+  "engine_protective_pause": {
+    "first_observed_utc": "2026-10-23T11:34:18Z",
+    "first_observed_resumed_utc": "2026-10-23T11:38:43Z",
+    "trigger": "node capabilities unavailable during node shutdown",
+    "engine_restarted": false
+  },
+  "client_recovery": {
+    "arb-engine": {
+      "before_pid": 605795,
+      "after_pid": 605795,
+      "start_ticks_unchanged": true,
+      "established_node_ws_connections": 2
+    },
+    "rust5": {
+      "before_pid": 3749276,
+      "after_pid": 1054515,
+      "start_ticks_unchanged": false,
+      "established_node_ws_connections": 2
+    },
+    "rust1": {
+      "before_pid": 2263735,
+      "after_pid": 2263735,
+      "start_ticks_unchanged": true,
+      "established_node_ws_connections": 3
+    },
+    "rust2": {
+      "before_pid": 2814627,
+      "after_pid": 2814627,
+      "start_ticks_unchanged": true,
+      "established_node_ws_connections": 2
+    }
+  },
+  "rust5_note": "PID changed during the node restart window; current WS connections are healthy. This task only sent process-control signals to geth; cause of rust5 replacement not established.",
+  "database_counts_before": {
+    "signed": 97910,
+    "events": 2456585,
+    "last_recorded": "2026-10-23T11:25:31.886784+00:00"
+  },
+  "database_counts_after": {
+    "signed": 97920,
+    "events": 2456629,
+    "last_recorded": "2026-10-23T11:37:58.990643+00:00"
+  },
+  "wal_state": "Existing signed/outbox WAL retained; sizes did not decrease in before/after snapshots. No state/WAL copies or restores.",
+  "server_tests": {
+    "go_focused_cases": 25,
+    "packages": 8,
+    "analyzer_cases": 8,
+    "go_build_tags": "urfave_cli_no_docs,ckzg"
+  },
+  "timing_acceptance_sample": {
+    "start_utc": "2026-10-23T11:37:03.273087+00:00",
+    "end_utc": "2026-10-23T11:37:33.449091+00:00",
+    "events": 16972,
+    "sampled_hashes": 540,
+    "cursor_loss": 0,
+    "internal_sequence_gaps": 0,
+    "boot_id": "1048706-18e125696e7ca26c",
+    "stage_counts": {
+      "hash_received": 2439,
+      "fetch_announce": 2439,
+      "fetch_wait_begin": 411,
+      "fetch_request_queued": 1120,
+      "fetch_request_begin": 1120,
+      "fetch_request_end": 1120,
+      "body_received": 265,
+      "body_decoded": 265,
+      "pool_add_begin": 265,
+      "legacy_add_begin": 264,
+      "legacy_lock_wait": 246,
+      "legacy_lock_acquired": 246,
+      "legacy_lock_released": 246,
+      "legacy_promote_begin": 246,
+      "legacy_promote_scheduled": 246,
+      "legacy_add_end": 264,
+      "pool_add_end": 265,
+      "tracker_first_seen": 170,
+      "feed_emit_begin": 152,
+      "feed_emit_end": 152,
+      "feed_received": 306,
+      "subscriber_send_begin": 306,
+      "subscriber_send_end": 306,
+      "subscriber_batch_dequeued": 306,
+      "simulation_batch_dequeued": 306,
+      "simulation_scheduled": 306,
+      "simulation_started": 306,
+      "simulation_state_ready": 306,
+      "simulation_finished": 306,
+      "simulation_result_dequeued": 306,
+      "payload_build_begin": 268,
+      "notify_begin": 268,
+      "notify_lock_acquired": 268,
+      "codec_write_begin": 268,
+      "codec_write_end": 268,
+      "notify_return": 268,
+      "fetch_wait_end": 363
+    }
+  },
+  "capabilities_identity_note": "arb_getCapabilities.commit is an existing static compatibility label; use geth version, embedded VCS info and ELF SHA256 for build identity.",
+  "limits": [
+    "This is release acceptance, not a steady-state five-minute latency or profitability diagnosis.",
+    "Peer count was still recovering (89 versus pre-restart 150) at the recorded final snapshot; chain following and client connections were healthy.",
+    "Shutdown completion logs are filtered by the existing logger; verification uses graceful exit, database reopening and advancing head."
+  ],
+  "old_project_process_control_issued": false
+}
