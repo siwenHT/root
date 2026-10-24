@@ -65,7 +65,9 @@ func TestPendingLockReorgPhasesPublishAfterUnlock(t *testing.T) {
 			}
 			for _, name := range []string{"reset", "state_open", "promote", "demote", "priced_reheap", "pending_nonce_rebuild", "truncate_pending", "truncate_queue"} {
 				e := phases[name]
-				if e.Sequence == 0 || e.Pool == 0 || e.Pool != hold.Pool || e.Operation != hold.Operation || e.MonotonicUS > hold.MonotonicUS || e.MonotonicUS-e.DurationUS < hold.MonotonicUS-hold.DurationUS {
+				// Endpoints and durations are truncated independently. Reconstructed
+				// starts of contained intervals can differ by one microsecond.
+				if e.Sequence == 0 || e.Pool == 0 || e.Pool != hold.Pool || e.Operation != hold.Operation || e.MonotonicUS > hold.MonotonicUS || e.MonotonicUS-e.DurationUS+1 < hold.MonotonicUS-hold.DurationUS {
 					t.Fatalf("phase escaped its actual lock interval: %s %+v hold=%+v", name, e, hold)
 				}
 			}
