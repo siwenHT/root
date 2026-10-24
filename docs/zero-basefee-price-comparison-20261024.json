@@ -1,0 +1,278 @@
+{
+  "recorded_utc": "2026-10-24T14:38:24.662523+00:00",
+  "status": "implemented_and_locally_validated_not_deployed",
+  "implementation_source": "6067e6cb5938931f8642c050a41564e889caed95",
+  "baseline_with_identical_tests_and_fixture": "aa9098eb34062a85c8d664838fc848719d471317",
+  "base_main": "ed2a96da1b39adbddc9eaf775f2322cca72680e3",
+  "production_code_diff": [
+    "core/types/transaction.go"
+  ],
+  "scope": {
+    "zero_base_fee": "For nonnegative fee caps of at most 256 bits, compare min(tip cap, fee cap) through internal big.Int references.",
+    "nil_or_nonzero_base_fee": "Keep the existing calculation and return semantics.",
+    "negative_or_overflowing_caps": "Fall back to the unchanged uint256 conversion path, preserving its historical ignored-error behavior.",
+    "heap_rebuild_frequency_and_ratios_changed": false,
+    "demote_or_state_preload_changed": false,
+    "configuration_changed": false,
+    "production_deployment_or_restart_performed": false
+  },
+  "differential_coverage": [
+    "429245 pair/base-fee comparisons, including Legacy, AccessList, DynamicFee, Blob and SetCode; nil, zero and nonzero base fees; 256-bit boundaries, negative caps, overflow and tip greater than fee.",
+    "Frozen-input heap pop order, including equal fee/tip/nonce priorities with distinct payloads.",
+    "Exact urgent/floating membership and eviction sequence versus an independently sorted selection model using the old conversion algorithm; nonce tie-breaks, Underpriced and mixed transaction types.",
+    "Stale-head cleanup, Removed-triggered rebuild, repeated zero-base-fee rebuild after removal without Removed, multi-slot discard, insufficient-capacity rollback and empty-pool branches."
+  ],
+  "tests": {
+    "baseline-binary-tests": {
+      "packages": [
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/types",
+          "Elapsed": 3.141
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/txpool/legacypool",
+          "Elapsed": 0.538
+        }
+      ],
+      "passing_test_entries_including_subtests": 16,
+      "failures": 0
+    },
+    "patch-new-tests": {
+      "packages": [
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/types",
+          "Elapsed": 2.919
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/txpool/legacypool",
+          "Elapsed": 0.221
+        }
+      ],
+      "passing_test_entries_including_subtests": 16,
+      "failures": 0
+    },
+    "full-tests": {
+      "packages": [
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/types",
+          "Elapsed": 3.92
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/txpool",
+          "Elapsed": 3.052
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/miner",
+          "Elapsed": 7.38
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/txpool/legacypool",
+          "Elapsed": 19.12
+        }
+      ],
+      "passing_test_entries_including_subtests": 208,
+      "failures": 0
+    },
+    "race-tests": {
+      "packages": [
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/txpool/legacypool",
+          "Elapsed": 2.533
+        },
+        {
+          "Package": "github.com/ethereum/go-ethereum/core/types",
+          "Elapsed": 17.155
+        }
+      ],
+      "passing_test_entries_including_subtests": 20,
+      "failures": 0
+    },
+    "fuzz": {
+      "seconds_requested": 30,
+      "executions": 265331,
+      "result": "PASS"
+    }
+  },
+  "fixture": {
+    "source_artifact_sha256": "941ec3bf01afd93d3063a72297591ae71e668f7137f46976541eca242e51835d",
+    "fixture_sha256": "df9737642e87debf4e293e3715c7c54051d8e9d18fc933b5c3cb964aa5f86d5e",
+    "all_price_counts_match_original": true,
+    "unique_prices": 5821,
+    "transactions": 38874,
+    "pending": 38292,
+    "queued": 582,
+    "contains_payloads_or_addresses": false
+  },
+  "benchmark_environment": "Local Ubuntu 24.04 WSL, linux/amd64, Go 1.25.0, CGO=1, ckzg, -test.cpu=1, Intel Xeon E5-2690 v4 @ 2.60GHz",
+  "benchmark_method": "10 paired runs, alternating baseline/patch order, 500ms per benchmark, same fixture and seed; bootstrap resamples paired log ratios",
+  "benchmark_identities": {
+    "baseline": {
+      "source": "aa9098eb34062a85c8d664838fc848719d471317",
+      "types_binary_sha256": "d68cf2c33ded03bcac4f1d35336de8d41557e29717aab8ca1227e4416cc339c8",
+      "priced_binary_sha256": "485dff897a12932614861abc70e4b9940f9cf2e28a8a905e2b25fa3439e2a83f"
+    },
+    "patch": {
+      "source": "6067e6cb5938931f8642c050a41564e889caed95",
+      "types_binary_sha256": "2e8f87650321de1a1ea9f6bc2edd512e32e15b5445203eb57baffc65080050d3",
+      "priced_binary_sha256": "5ecb67f4add18c4c3ae72e5c65f54dd9ec6959441dedd71b28aee2300162f061"
+    }
+  },
+  "benchmarks": {
+    "BenchmarkEffectiveGasTipCmpBaseFee/type0/base0": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 49.345,
+      "patch_median_ns_per_op": 37.78,
+      "paired_geomean_patch_over_baseline": 0.7656707439261597,
+      "paired_bootstrap_ratio_ci95": [
+        0.7601132741910627,
+        0.771139036418009
+      ],
+      "baseline_median_bytes_per_op": 0.0,
+      "patch_median_bytes_per_op": 0.0,
+      "baseline_median_allocs_per_op": 0.0,
+      "patch_median_allocs_per_op": 0.0
+    },
+    "BenchmarkEffectiveGasTipCmpBaseFee/type0/base1000000000": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 48.8,
+      "patch_median_ns_per_op": 51.295,
+      "paired_geomean_patch_over_baseline": 1.0444378993558248,
+      "paired_bootstrap_ratio_ci95": [
+        1.0258756874560897,
+        1.0641079893211294
+      ],
+      "baseline_median_bytes_per_op": 0.0,
+      "patch_median_bytes_per_op": 0.0,
+      "baseline_median_allocs_per_op": 0.0,
+      "patch_median_allocs_per_op": 0.0
+    },
+    "BenchmarkEffectiveGasTipCmpBaseFee/type2/base0": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 52.355000000000004,
+      "patch_median_ns_per_op": 45.495000000000005,
+      "paired_geomean_patch_over_baseline": 0.8645937462558896,
+      "paired_bootstrap_ratio_ci95": [
+        0.8377847866559596,
+        0.8903431169500803
+      ],
+      "baseline_median_bytes_per_op": 0.0,
+      "patch_median_bytes_per_op": 0.0,
+      "baseline_median_allocs_per_op": 0.0,
+      "patch_median_allocs_per_op": 0.0
+    },
+    "BenchmarkEffectiveGasTipCmpBaseFee/type2/base1000000000": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 51.915,
+      "patch_median_ns_per_op": 51.305,
+      "paired_geomean_patch_over_baseline": 0.988977613505741,
+      "paired_bootstrap_ratio_ci95": [
+        0.9529109810628795,
+        1.0226966148235046
+      ],
+      "baseline_median_bytes_per_op": 0.0,
+      "patch_median_bytes_per_op": 0.0,
+      "baseline_median_allocs_per_op": 0.0,
+      "patch_median_allocs_per_op": 0.0
+    },
+    "BenchmarkEffectiveGasTipCmpBaseFee/type4/base0": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 464.45000000000005,
+      "patch_median_ns_per_op": 468.95000000000005,
+      "paired_geomean_patch_over_baseline": 1.005085646895723,
+      "paired_bootstrap_ratio_ci95": [
+        0.9960279270674861,
+        1.014004935343471
+      ],
+      "baseline_median_bytes_per_op": 256.0,
+      "patch_median_bytes_per_op": 256.0,
+      "baseline_median_allocs_per_op": 8.0,
+      "patch_median_allocs_per_op": 8.0
+    },
+    "BenchmarkEffectiveGasTipCmpBaseFee/type4/base1000000000": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 451.15,
+      "patch_median_ns_per_op": 457.0,
+      "paired_geomean_patch_over_baseline": 1.0113576964173192,
+      "paired_bootstrap_ratio_ci95": [
+        1.0038321233120546,
+        1.0187007254542384
+      ],
+      "baseline_median_bytes_per_op": 256.0,
+      "patch_median_bytes_per_op": 256.0,
+      "baseline_median_allocs_per_op": 8.0,
+      "patch_median_allocs_per_op": 8.0
+    },
+    "BenchmarkPricedReheapCapturedPool/Legacy/38874": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 70062986.0,
+      "patch_median_ns_per_op": 50436539.0,
+      "paired_geomean_patch_over_baseline": 0.7147108046547976,
+      "paired_bootstrap_ratio_ci95": [
+        0.6936944759636001,
+        0.735009011709354
+      ],
+      "baseline_median_bytes_per_op": 376832.0,
+      "patch_median_bytes_per_op": 376832.0,
+      "baseline_median_allocs_per_op": 2.0,
+      "patch_median_allocs_per_op": 2.0
+    },
+    "BenchmarkPricedReheapCapturedPool/Legacy/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 202024966.0,
+      "patch_median_ns_per_op": 137825025.5,
+      "paired_geomean_patch_over_baseline": 0.691296963259411,
+      "paired_bootstrap_ratio_ci95": [
+        0.6752723387246421,
+        0.7068997218222725
+      ],
+      "baseline_median_bytes_per_op": 778240.0,
+      "patch_median_bytes_per_op": 778240.0,
+      "baseline_median_allocs_per_op": 2.0,
+      "patch_median_allocs_per_op": 2.0
+    },
+    "BenchmarkPricedReheapCapturedPool/LegacyDynamic50_50/38874": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 74464771.5,
+      "patch_median_ns_per_op": 56877951.0,
+      "paired_geomean_patch_over_baseline": 0.7623321430906111,
+      "paired_bootstrap_ratio_ci95": [
+        0.747952553378318,
+        0.7761747347235806
+      ],
+      "baseline_median_bytes_per_op": 376832.0,
+      "patch_median_bytes_per_op": 376832.0,
+      "baseline_median_allocs_per_op": 2.0,
+      "patch_median_allocs_per_op": 2.0
+    },
+    "BenchmarkPricedReheapCapturedPool/LegacyDynamic50_50/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_op": 206105266.0,
+      "patch_median_ns_per_op": 158348025.0,
+      "paired_geomean_patch_over_baseline": 0.7483409798976269,
+      "paired_bootstrap_ratio_ci95": [
+        0.7260655772068145,
+        0.769568333568273
+      ],
+      "baseline_median_bytes_per_op": 778240.0,
+      "patch_median_bytes_per_op": 778240.0,
+      "baseline_median_allocs_per_op": 2.0,
+      "patch_median_allocs_per_op": 2.0
+    }
+  },
+  "limitations": [
+    "The captured marginal price/count distribution is exact; transaction types, nonces and recipients are synthetic, with both fee and tip caps set to the captured gas price. This is not signed-transaction replay.",
+    "Whole-Reheap workloads use all Legacy or an artificial 50/50 Legacy/DynamicFee mix. The observed snapshot did not identify transaction types or joint fee/tip distributions.",
+    "Zero-base-fee SetCode comparison shows no clear improvement; its 256 B and 8 allocations per comparison remain.",
+    "The nonzero-base-fee Legacy microbenchmark adds about 2.5 ns (paired ratio +4.4%); nonzero SetCode adds about 1.1%. Calculation semantics remain unchanged, but dispatch has a small cost.",
+    "These are local single-CPU benchmark results, with no claim about production P95, pending expiry, inclusion or revenue."
+  ],
+  "reproduction": {
+    "toolchain": "Go 1.25.0, linux/amd64, CGO_ENABLED=1, GOMAXPROCS=4 for tests; module versions/checksums unchanged.",
+    "full": "go test -p 4 -mod=readonly -tags ckzg ./core/types ./core/txpool/legacypool ./core/txpool ./miner -count=1",
+    "race": "go test -race -p 4 -mod=readonly -tags ckzg ./core/types ./core/txpool/legacypool -run 'TestEffectiveGasTipCmp|TestPriceHeapOrderingDifferential|TestPricedListEvictionDifferential|TestCapturedPoolPriceFixture|TestRepricing|TestSetCodeTransactionsReorg|TestPendingLock' -count=1",
+    "fuzz": "go test -p 4 -parallel 4 -mod=readonly -tags ckzg ./core/types -run '^$' -fuzz '^FuzzEffectiveGasTipCmpDifferential$' -fuzztime=30s",
+    "benchmark": "Build both revisions with go test -c -mod=readonly -tags ckzg, then alternate their test binaries 10 times with -test.run=^$ -test.bench=^BenchmarkPricedReheapCapturedPool$ or ^BenchmarkEffectiveGasTipCmpBaseFee$ -test.benchtime=500ms -test.count=1 -test.cpu=1 -test.benchmem."
+  },
+  "raw_evidence_directory": "D:\\workSpace\\.codex-build\\node-zero-basefee-20261024",
+  "build_validation": "Local node executable build and identity are recorded separately in the raw evidence directory; no server build, installation or process control is authorized in this task."
+}
