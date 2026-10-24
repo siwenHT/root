@@ -1,0 +1,922 @@
+{
+  "recorded_utc": "2026-10-24T13:32:13.577665+00:00",
+  "status": "production_release_and_five_minute_capture_verified",
+  "production_source_commit": "c45f3746f807e23d3981515ef5983ceb980fec95",
+  "production_source_tree": "95d586ea98862ca7faa8b5b9eb7c58264b39bc66",
+  "production_elf_sha256": "a55718575e8a03f09137883fbdf916f45ef55705741b1f964ba82f0aec055074",
+  "binary_path": "/home/bsc/fullnode/geth",
+  "build_repository": "/home/bsc/codex_stage/arb-node-build",
+  "build_branch": "main",
+  "build_go": "1.25.0",
+  "build_tags": "urfave_cli_no_docs,ckzg",
+  "embedded_vcs_modified": false,
+  "previous_source_commit": "3e2e7782edb4e3a7fdd4cd8896f8b072f089bac9",
+  "previous_elf_sha256": "6d8c976399c6e4baab54a2b4a76e2141ae724460a87628c22a5de3b5dc8fb6bf",
+  "rollback_binary": "/home/bsc/fullnode/geth.prev",
+  "rollback_used": false,
+  "old_node_pid": 1048706,
+  "new_node_pid": 3821473,
+  "signal_utc": "2026-10-24T13:00:28.584152+00:00",
+  "ready_utc": "2026-10-24T13:00:54.659875+00:00",
+  "accepted_utc": "2026-10-24T13:10:24.278478+00:00",
+  "graceful_shutdown_seconds": 3.0015218146145344,
+  "new_startup_readiness_seconds": 23.02902968786657,
+  "configuration_and_startup_unchanged": true,
+  "configuration_sha256": {
+    "/home/bsc/fullnode/config.toml": "8f7635e0a4306200f53a9fb1db208a7fb38dd64e52009f831dafc922cc1b1bc0",
+    "/home/bsc/fullnode/z_run.sh": "6e1d21a15c03537f2132a8a1d08a6c4862b870b7378749c50d6a4ba77a00ba23",
+    "/home/bsc/codex_stage/arb-live/runtime.env": "7911ed6567a13ead7dc0f0d880dbd30ecee83de8c1b78448f2fb5cbcc76070d0",
+    "/home/bsc/codex_stage/arb-live/pools.json": "68354cfcf7fce18b5c216c502473419a83f3be3a2af25547b9e4d04c3d32d581"
+  },
+  "node_tuning_unchanged": {
+    "ARB_V3_CACHE_MODE": "on"
+  },
+  "client_recovery": {
+    "arb-engine": {
+      "before_pid": 605795,
+      "after_pid": 605795
+    },
+    "rust1": {
+      "before_pid": 2263735,
+      "after_pid": 2263735
+    },
+    "rust2": {
+      "before_pid": 2748705,
+      "after_pid": 2748705
+    },
+    "rust5": {
+      "before_pid": 713859,
+      "after_pid": 3827674
+    }
+  },
+  "rust5_note": "PID changed during restart; automatically recovered. This task controlled only geth, and did not establish the cause of rust5 replacement.",
+  "engine_restarted": false,
+  "database_counts_before": {
+    "signed": 104026,
+    "events": 2480694
+  },
+  "database_counts_after": {
+    "signed": 104036,
+    "events": 2480740
+  },
+  "wal_state": "Existing WAL retained; no state/WAL copies or restores. Outbox compaction logged at 12:59:54 UTC (134338371 to 11850740 bytes), explaining the smaller post-restart file. Database counts did not decrease.",
+  "server_tests": {
+    "go_packages": 11,
+    "go_pass_events": 499,
+    "python_cases": 13
+  },
+  "old_project_process_control_issued": false,
+  "capabilities_identity_note": "Capabilities commit is a static compatibility label. Build identity is geth version, embedded VCS revision/clean flag, and running ELF SHA256. Capabilities verified through existing IPC with schema_version=4.",
+  "database_counts_after_observation": {
+    "signed": 104043,
+    "events": 2480765
+  },
+  "final_health": {
+    "utc": "2026-10-24T13:16:56.481090+00:00",
+    "rpc": {
+      "web3_clientVersion": "Geth/v1.7.8-c45f3746-20261024/linux-amd64/go1.25.0",
+      "eth_chainId": "0x38",
+      "eth_syncing": false,
+      "eth_blockNumber": "0x7b852cd",
+      "net_peerCount": "0x8a",
+      "txpool_status": {
+        "pending": "0x903f",
+        "queued": "0x221"
+      }
+    },
+    "database_counts_before": {
+      "signed": 104026,
+      "events": 2480694
+    },
+    "database_counts_after": {
+      "signed": 104043,
+      "events": 2480765
+    },
+    "runtime": {
+      "line_time": "2026-10-24T13:16:54Z engine en",
+      "connected": true,
+      "paused": false,
+      "sent": 4669,
+      "audit_dropped": 0
+    },
+    "node_pid": 3821473,
+    "config_hashes_unchanged": true,
+    "connections": {
+      "rust1:2263735:ESTAB": 3,
+      "geth:3821473:ESTAB": 11,
+      "python3:3975241:ESTAB": 1,
+      "rust5:3827674:ESTAB": 2,
+      "rust2:2748705:ESTAB": 2,
+      "curl:4066327:ESTAB": 1,
+      "arb-engine:605795:ESTAB": 2
+    }
+  },
+  "observation": {
+    "window_start_utc": "2026-10-24T13:11:12.329983+00:00",
+    "window_end_utc": "2026-10-24T13:16:12.329983+00:00",
+    "window_timezone": "Asia/Shanghai (+08:00)",
+    "seconds": 300,
+    "pre_seconds": 10,
+    "drain_seconds": 45,
+    "all_capture_boundary_events": 3335682,
+    "main_window_boundary_events": 2794480,
+    "integrity": {
+      "node_events": 3335682,
+      "node_cursor_loss": 0,
+      "node_sequence_gaps": 0,
+      "rust_parse_errors": 0,
+      "rust_audit_dropped_max": 0,
+      "rotation_gap_flags": 0,
+      "join_issues": {
+        "unmatched_terminal": 2
+      },
+      "identities_unchanged": true,
+      "configuration_hashes_unchanged": true,
+      "main_window_boundary_events": 2794480,
+      "main_window_unmatched_rust_terminals": 0,
+      "main_window_attempts_missing_terminal": 0
+    },
+    "rust_received": 35325,
+    "rust_no_routes": 30663,
+    "first": {
+      "attempts": 4662,
+      "reasons": {
+        "target_result.reverted": 5,
+        "pending_parent.deadline_exhausted": 4230,
+        "quote.inconclusive_budget": 206,
+        "target_precheck.nonce_too_low": 161,
+        "build.deadline_exhausted": 54,
+        "route_preselect.empty": 3,
+        "candidate_result.reverted": 3
+      },
+      "timings_us": {
+        "ingress_us": {
+          "n": 4662,
+          "p50": 1075,
+          "p95": 6056,
+          "p99": 24118,
+          "max": 74758,
+          "min": 128
+        },
+        "queue_wait_us": {
+          "n": 4662,
+          "p50": 2,
+          "p95": 2437,
+          "p99": 10563,
+          "max": 41421,
+          "min": 0
+        },
+        "queue_us": {
+          "n": 4662,
+          "p50": 1110,
+          "p95": 10226,
+          "p99": 27788,
+          "max": 75063,
+          "min": 129
+        },
+        "parent_lookup_us": {
+          "n": 4662,
+          "p50": 390,
+          "p95": 724,
+          "p99": 5475,
+          "max": 7431,
+          "min": 237
+        },
+        "build_us": {
+          "n": 4662,
+          "p50": 452,
+          "p95": 19363,
+          "p99": 32651,
+          "max": 72040,
+          "min": 263
+        },
+        "parent_age_at_rust_receive_us": {
+          "n": 4662,
+          "p50": 541725,
+          "p95": 640823,
+          "p99": 973172,
+          "max": 1299951,
+          "min": 49097
+        },
+        "parent_age_at_lookup_us": {
+          "n": 4662,
+          "p50": 544036,
+          "p95": 644549,
+          "p99": 976907,
+          "max": 1301773,
+          "min": 53232
+        }
+      },
+      "parent_deadline_rejections": 4230,
+      "deadline_rejections_already_expired_at_rust_receive": 4207
+    },
+    "retry": {
+      "attempts": 4277,
+      "reasons": {
+        "target_precheck.nonce_too_low": 3720,
+        "candidate_result.reverted": 2,
+        "quote.inconclusive_budget": 125,
+        "target_result.reverted": 7,
+        "pending_parent.deadline_exhausted": 397,
+        "route_preselect.empty": 23,
+        "build.deadline_exhausted": 2,
+        "pending_build_succeeded": 1
+      },
+      "timings_us": {
+        "ingress_us": {
+          "n": 0
+        },
+        "queue_wait_us": {
+          "n": 4277,
+          "p50": 6211,
+          "p95": 33344,
+          "p99": 57716,
+          "max": 100966,
+          "min": 0
+        },
+        "queue_us": {
+          "n": 4277,
+          "p50": 76023,
+          "p95": 375054,
+          "p99": 678903,
+          "max": 948534,
+          "min": 3891
+        },
+        "parent_lookup_us": {
+          "n": 4277,
+          "p50": 651,
+          "p95": 3539,
+          "p99": 6706,
+          "max": 9581,
+          "min": 274
+        },
+        "build_us": {
+          "n": 4277,
+          "p50": 4217,
+          "p95": 13904,
+          "p99": 36085,
+          "max": 55981,
+          "min": 336
+        },
+        "parent_age_at_rust_receive_us": {
+          "n": 4277,
+          "p50": 95140,
+          "p95": 190603,
+          "p99": 512046,
+          "max": 849951,
+          "min": -544837
+        },
+        "parent_age_at_lookup_us": {
+          "n": 4277,
+          "p50": 172379,
+          "p95": 472618,
+          "p99": 738052,
+          "max": 1052898,
+          "min": 55365
+        }
+      },
+      "parent_deadline_rejections": 397,
+      "deadline_rejections_already_expired_at_rust_receive": 72
+    },
+    "identified_rpc_subscription": "0x7635b8669a7e578c5923a63f28c1c80c",
+    "complete_sampled_first_paths": 135,
+    "sampled_first_node_metrics_us": {
+      "accepted_pool_add_us": {
+        "n": 135,
+        "p50": 258,
+        "p95": 4345,
+        "p99": 83865,
+        "max": 161102,
+        "min": 56
+      },
+      "simulation_queue_us": {
+        "n": 135,
+        "p50": 5,
+        "p95": 74,
+        "p99": 109,
+        "max": 110,
+        "min": 2
+      },
+      "simulation_worker_schedule_us": {
+        "n": 135,
+        "p50": 2,
+        "p95": 61,
+        "p99": 90,
+        "max": 102,
+        "min": 0
+      },
+      "simulation_us": {
+        "n": 135,
+        "p50": 476,
+        "p95": 3100,
+        "p99": 9236,
+        "max": 17076,
+        "min": 213
+      },
+      "simulation_result_queue_us": {
+        "n": 135,
+        "p50": 3,
+        "p95": 26,
+        "p99": 154,
+        "max": 546,
+        "min": 1
+      },
+      "result_to_notify_us": {
+        "n": 135,
+        "p50": 5,
+        "p95": 8,
+        "p99": 13,
+        "max": 15,
+        "min": 3
+      },
+      "notifier_mutex_wait_us": {
+        "n": 135,
+        "p50": 0,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "min": 0
+      },
+      "codec_write_us": {
+        "n": 135,
+        "p50": 71,
+        "p95": 263,
+        "p99": 1017,
+        "max": 1558,
+        "min": 33
+      },
+      "simulation_state_preparation_us": {
+        "n": 135,
+        "p50": 21,
+        "p95": 34,
+        "p99": 49,
+        "max": 432,
+        "min": 11
+      },
+      "simulation_after_state_ready_us": {
+        "n": 135,
+        "p50": 446,
+        "p95": 3073,
+        "p99": 9218,
+        "max": 17052,
+        "min": 186
+      }
+    },
+    "head_reset_lock": {
+      "count": 666,
+      "hold_us": {
+        "n": 666,
+        "p50": 174558,
+        "p95": 198132,
+        "p99": 210454,
+        "max": 223792,
+        "min": 140078
+      },
+      "hold_sum_us": 116602212,
+      "unmeasured_inside_hold_us": {
+        "n": 666,
+        "p50": 4,
+        "p95": 5,
+        "p99": 5,
+        "max": 7,
+        "min": 1
+      }
+    },
+    "promotion_only_lock": {
+      "count": 43951,
+      "hold_us": {
+        "n": 43951,
+        "p50": 1011,
+        "p95": 3031,
+        "p99": 3870,
+        "max": 15935,
+        "min": 448
+      },
+      "hold_sum_us": 57182680,
+      "unmeasured_inside_hold_us": {
+        "n": 43951,
+        "p50": 1,
+        "p95": 2,
+        "p99": 3,
+        "max": 21,
+        "min": 0
+      }
+    },
+    "phase_us": {
+      "head_reset/demote": {
+        "n": 666,
+        "p50": 113044,
+        "p95": 128361,
+        "p99": 137575,
+        "max": 145099,
+        "min": 86853,
+        "sum": 76133364
+      },
+      "head_reset/pending_nonce_rebuild": {
+        "n": 666,
+        "p50": 11556,
+        "p95": 15708,
+        "p99": 17290,
+        "max": 20627,
+        "min": 8883,
+        "sum": 7895431
+      },
+      "head_reset/priced_reheap": {
+        "n": 666,
+        "p50": 42708,
+        "p95": 57650,
+        "p99": 69476,
+        "max": 80899,
+        "min": 28870,
+        "sum": 28919228
+      },
+      "head_reset/promote": {
+        "n": 666,
+        "p50": 2620,
+        "p95": 3416,
+        "p99": 3698,
+        "max": 8433,
+        "min": 1629,
+        "sum": 1773733
+      },
+      "head_reset/reset": {
+        "n": 666,
+        "p50": 37,
+        "p95": 60,
+        "p99": 99,
+        "max": 426,
+        "min": 21,
+        "sum": 26806
+      },
+      "head_reset/state_open": {
+        "n": 666,
+        "p50": 7,
+        "p95": 17,
+        "p99": 29,
+        "max": 388,
+        "min": 2,
+        "sum": 6068
+      },
+      "head_reset/truncate_pending": {
+        "n": 666,
+        "p50": 2676,
+        "p95": 3458,
+        "p99": 4372,
+        "max": 6389,
+        "min": 1345,
+        "sum": 1823982
+      },
+      "head_reset/truncate_queue": {
+        "n": 666,
+        "p50": 40,
+        "p95": 48,
+        "p99": 68,
+        "max": 121,
+        "min": 27,
+        "sum": 27282
+      },
+      "promotion_only/promote": {
+        "n": 43951,
+        "p50": 45,
+        "p95": 103,
+        "p99": 314,
+        "max": 3995,
+        "min": 0,
+        "sum": 2058418
+      },
+      "promotion_only/truncate_pending": {
+        "n": 43951,
+        "p50": 943,
+        "p95": 2930,
+        "p99": 3751,
+        "max": 9602,
+        "min": 442,
+        "sum": 54387816
+      },
+      "promotion_only/truncate_queue": {
+        "n": 43951,
+        "p50": 11,
+        "p95": 38,
+        "p99": 50,
+        "max": 3074,
+        "min": 4,
+        "sum": 678026
+      }
+    },
+    "admission_waits": {
+      "count": 73875,
+      "wait_us": {
+        "n": 73875,
+        "p50": 1401,
+        "p95": 153599,
+        "p99": 180490,
+        "max": 349242,
+        "min": 0
+      },
+      "wait_sum_us": 1930970996,
+      "owner_union_sum_us": 1929038223,
+      "runReorg_union_sum_us": 1907359463,
+      "unattributed_sum_us": 1932773,
+      "over_1ms": 41069,
+      "over_1ms_with_reorg_owner": 40902,
+      "owner_source_overlap_us": {
+        "runReorg": 1907359463,
+        "Add": 6462100,
+        "Stats": 246355,
+        "Pending": 15630472,
+        "loop.stats": 603851,
+        "loop.evict": 251,
+        "loop.reannounce": 1049
+      },
+      "runReorg_phase_overlap_us": {
+        "promote": 5646149,
+        "truncate_pending": 122005135,
+        "truncate_queue": 1816666,
+        "state_open": 4440,
+        "reset_excluding_state_open": 11863,
+        "demote": 901515458,
+        "priced_reheap": 668681012,
+        "pending_nonce_rebuild": 207557903
+      }
+    },
+    "selected_packet_metrics_us": {
+      "fetch_admission": {
+        "n": 11415,
+        "p50": 846,
+        "p95": 111473,
+        "p99": 171650,
+        "max": 349424,
+        "min": 0,
+        "sum": 137713121
+      },
+      "fetch_cleanup_handoff": {
+        "n": 15172,
+        "p50": 2,
+        "p95": 189,
+        "p99": 343,
+        "max": 2883,
+        "min": 0,
+        "sum": 666933
+      },
+      "fetch_notify_handoff": {
+        "n": 72412,
+        "p50": 1,
+        "p95": 163,
+        "p99": 313,
+        "max": 3031,
+        "min": 0,
+        "sum": 2230100
+      },
+      "fetch_rejection_backoff": {
+        "n": 7,
+        "p50": 200068,
+        "p95": 201779,
+        "p99": 201779,
+        "max": 201779,
+        "min": 200002,
+        "sum": 1402108
+      },
+      "handler_us": {
+        "n": 167488,
+        "p50": 11,
+        "p95": 115048,
+        "p99": 169967,
+        "max": 4745776,
+        "min": 1,
+        "sum": 1911717922
+      },
+      "handoff_us": {
+        "n": 186703,
+        "p50": 2,
+        "p95": 94415,
+        "p99": 162865,
+        "max": 3969860,
+        "min": 0,
+        "sum": 1754173207
+      },
+      "p2p_dispatch": {
+        "n": 110321,
+        "p50": 2,
+        "p95": 131881,
+        "p99": 171604,
+        "max": 3969862,
+        "min": 0,
+        "sum": 1753158415
+      },
+      "p2p_previous_dispatch": {
+        "n": 186913,
+        "p50": 1,
+        "p95": 236,
+        "p99": 85890,
+        "max": 3969862,
+        "min": 0,
+        "sum": 327925539
+      },
+      "p2p_read": {
+        "n": 186922,
+        "p50": 1759,
+        "p95": 29216,
+        "p99": 83706,
+        "max": 15000053,
+        "min": 0,
+        "sum": 1819209156
+      },
+      "p2p_read_gap": {
+        "n": 186913,
+        "p50": 2,
+        "p95": 237,
+        "p99": 85891,
+        "max": 3969864,
+        "min": 0,
+        "sum": 328111670
+      },
+      "pool_add_call": {
+        "n": 11409,
+        "p50": 845,
+        "p95": 111469,
+        "p99": 171646,
+        "max": 349363,
+        "min": 0,
+        "sum": 137675035
+      },
+      "rlpx_io_window": {
+        "n": 143781,
+        "p50": 3025,
+        "p95": 34884,
+        "p99": 98793,
+        "max": 15000050,
+        "min": 0,
+        "sum": 1818360784
+      },
+      "rlpx_prefetch_wait/complete_frame": {
+        "n": 43141,
+        "p50": 971,
+        "p95": 13484,
+        "p99": 157854,
+        "max": 3970118,
+        "min": 1,
+        "sum": 257060569
+      },
+      "rlpx_prefetch_wait/partial_frame": {
+        "n": 123,
+        "p50": 64,
+        "p95": 111392,
+        "p99": 151648,
+        "max": 163852,
+        "min": 6,
+        "sum": 1423457
+      }
+    },
+    "full_frame_prefetch": {
+      "fully_prefetched_packets": 43141,
+      "fully_prefetched_wait_over_1ms": 21372,
+      "fully_prefetched_wait_over_1ms_with_previous_handler_lock_wait": 3267,
+      "fully_prefetched_wait_over_1ms_with_previous_handler_rejection_backoff": 0
+    },
+    "rejection_backoff": {
+      "count": 7,
+      "duration_us": {
+        "n": 7,
+        "p50": 200068,
+        "p95": 201779,
+        "p99": 201779,
+        "max": 201779,
+        "min": 200002
+      },
+      "rejected_per_batch": {
+        "n": 7,
+        "p50": 41,
+        "p95": 64,
+        "p99": 64,
+        "max": 64,
+        "min": 33
+      },
+      "batch_size": {
+        "n": 7,
+        "p50": 41,
+        "p95": 64,
+        "p99": 64,
+        "max": 64,
+        "min": 33
+      },
+      "sum_us": 1402108,
+      "largest": [
+        {
+          "packet": 4777274,
+          "operation": 4777276,
+          "duration_us": 201779,
+          "batch_size": 64,
+          "rejected": 64,
+          "unix_us": 1792847594488013
+        },
+        {
+          "packet": 4388627,
+          "operation": 4388630,
+          "duration_us": 200167,
+          "batch_size": 48,
+          "rejected": 48,
+          "unix_us": 1792847557194362
+        },
+        {
+          "packet": 6565558,
+          "operation": 6565564,
+          "duration_us": 200068,
+          "batch_size": 57,
+          "rejected": 57,
+          "unix_us": 1792847762675857
+        },
+        {
+          "packet": 6575433,
+          "operation": 6575436,
+          "duration_us": 200068,
+          "batch_size": 41,
+          "rejected": 41,
+          "unix_us": 1792847763420060
+        },
+        {
+          "packet": 3974694,
+          "operation": 3974703,
+          "duration_us": 200012,
+          "batch_size": 35,
+          "rejected": 34,
+          "unix_us": 1792847511701751
+        },
+        {
+          "packet": 4623105,
+          "operation": 4623110,
+          "duration_us": 200012,
+          "batch_size": 38,
+          "rejected": 38,
+          "unix_us": 1792847580797968
+        },
+        {
+          "packet": 4608855,
+          "operation": 4608858,
+          "duration_us": 200002,
+          "batch_size": 33,
+          "rejected": 33,
+          "unix_us": 1792847579264420
+        }
+      ],
+      "linked_blocked_handoffs": [
+        {
+          "blocked_handoff_packet": 3974790,
+          "handler_packet": 3974694,
+          "backoff_overlap_us": 196651,
+          "handoff_us": 196663
+        },
+        {
+          "blocked_handoff_packet": 4388628,
+          "handler_packet": 4388627,
+          "backoff_overlap_us": 200167,
+          "handoff_us": 298164
+        },
+        {
+          "blocked_handoff_packet": 4608937,
+          "handler_packet": 4608855,
+          "backoff_overlap_us": 196876,
+          "handoff_us": 196883
+        },
+        {
+          "blocked_handoff_packet": 4623582,
+          "handler_packet": 4623105,
+          "backoff_overlap_us": 163696,
+          "handoff_us": 163708
+        },
+        {
+          "blocked_handoff_packet": 6565576,
+          "handler_packet": 6565558,
+          "backoff_overlap_us": 200068,
+          "handoff_us": 204714
+        },
+        {
+          "blocked_handoff_packet": 6575491,
+          "handler_packet": 6575433,
+          "backoff_overlap_us": 194170,
+          "handoff_us": 194182
+        }
+      ]
+    },
+    "sampled_first_earliest_packet": {
+      "count": 135,
+      "late_count": 125,
+      "late_first_read_already_after_deadline": 117,
+      "late_proven_full_frame_local_cutoff_crossings": 0,
+      "with_packet_timing": 135,
+      "with_complete_frame_prefetch": 0
+    },
+    "sampled_first_body_packet": {
+      "count": 135,
+      "with_packet_timing": 135,
+      "late_count": 125,
+      "with_complete_frame_prefetch": 13,
+      "proven_local_cutoff_crossings": 0,
+      "metrics_us": {
+        "admission_lock_wait_overlap_us": {
+          "n": 3,
+          "p50": 1651,
+          "p95": 1772,
+          "p99": 1772,
+          "max": 1772,
+          "min": 1064,
+          "sum": 4487
+        },
+        "fetch_rejection_backoff_overlap_us": {
+          "n": 3,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0,
+          "min": 0,
+          "sum": 0
+        },
+        "p2p_previous_dispatch_us": {
+          "n": 135,
+          "p50": 1,
+          "p95": 297,
+          "p99": 1717,
+          "max": 1875,
+          "min": 0,
+          "sum": 7650
+        },
+        "p2p_read_gap_us": {
+          "n": 135,
+          "p50": 2,
+          "p95": 298,
+          "p99": 1718,
+          "max": 1876,
+          "min": 0,
+          "sum": 7767
+        },
+        "p2p_read_us": {
+          "n": 135,
+          "p50": 1634,
+          "p95": 30059,
+          "p99": 48212,
+          "max": 108950,
+          "min": 2,
+          "sum": 736623
+        },
+        "rlpx_prefetch_wait_us": {
+          "n": 13,
+          "p50": 947,
+          "p95": 29097,
+          "p99": 29097,
+          "max": 29097,
+          "min": 11,
+          "sum": 59187
+        }
+      }
+    },
+    "remote_propagation_us": null,
+    "max_timing_rpc_us": 22289,
+    "local_recomputation_matches_server_core_statistics": true,
+    "all_raw_artifact_sha256_verified": true,
+    "raw_server_directory": "/home/bsc/codex_stage/pending-lock-p2p-observe-20261024",
+    "local_evidence_directory": "D:\\workSpace\\.codex-build\\node-lock-p2p-release-20261024",
+    "raw_artifacts": {
+      "node-pages.jsonl.gz": {
+        "bytes": 100419920,
+        "raw_bytes": 1475742594,
+        "sha256": "086647bd519df1d38e6cb5b88e5b1edf9679b7ae6fcba90a9c2006a7a63fda77"
+      },
+      "rust-stages.jsonl.gz": {
+        "bytes": 5108045,
+        "raw_bytes": 40353980,
+        "sha256": "20e1c946f83f49796d0ac08f1bb8d3c30037ba712320508882e4de634c626a0f"
+      },
+      "runtime-status.jsonl.gz": {
+        "bytes": 3179,
+        "raw_bytes": 31950,
+        "sha256": "4041a2be3f75dd2d9b6882e380bbb1884f74a2c0e2025e8733517e95f2ff7324"
+      },
+      "health.jsonl.gz": {
+        "bytes": 773,
+        "raw_bytes": 4056,
+        "sha256": "a3c5ac3d146b89554456dc1b073a0e5d563a8e68e53df33e5baea69d317dac61"
+      },
+      "capture-meta.json": {
+        "bytes": 4446,
+        "sha256": "8895f6cc2aec2edd1681e48c31d24f9022ae13d5a20abae321a20a768ae28d4d"
+      },
+      "before.json": {
+        "bytes": 1122,
+        "sha256": "af4967b895f6f7218f818d3adcd4654d1fed823a5089313af2301dd36f6c746b"
+      },
+      "after.json": {
+        "bytes": 1122,
+        "sha256": "f21e53addf6a21d3b8d19a6379de3f7cd72193e3bbbc5457c9370fc6d4aba64f"
+      }
+    }
+  },
+  "limits": [
+    "Raw capture count includes 10 seconds before and 45 seconds after the fixed 300-second window. Hash sampling remains 1/32.",
+    "Scoped lock/packet records are not transactions. Packet selection includes slow/failure/backoff paths and is not an unbiased all-packet sample.",
+    "state_open is nested in reset. Overlapping phases, waits, prefetch, handoff and read gaps are not added as independent latency.",
+    "Lock-holder overlap is a confirmed lower bound; sums of concurrent admission waits are queue burden, not wall-clock time.",
+    "Earliest retained local reads are not peer-send or kernel-arrival times. Parent-block age is not transaction propagation time.",
+    "Most first-attempt expiry predates the earliest retained read; remote propagation and earlier local blocking remain unquantified.",
+    "This restart observation is not a performance or profitability improvement experiment; peers and pending pool were still recovering.",
+    "Two unmatched terminal rows belong to the capture prebuffer; the formal window has zero unmatched terminals and no missing attempt terminals."
+  ]
+}

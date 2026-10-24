@@ -5,8 +5,8 @@ This change only records evidence. The 200 ms announcement grace period, 50 ms
 gather slack, txpool validation/promotion, 128-batch subscription channel,
 24 simulation slots, result filtering and notification payloads are unchanged.
 The production node restarted on 2026-10-23 at 19:34 China time; acceptance
-completed at 19:41. The running
-source is `3e2e7782edb4e3a7fdd4cd8896f8b072f089bac9`; the server-built ELF
+completed at 19:41. The release
+source was `3e2e7782edb4e3a7fdd4cd8896f8b072f089bac9`; the server-built ELF
 SHA256 is
 `6d8c976399c6e4baab54a2b4a76e2141ae724460a87628c22a5de3b5dc8fb6bf`.
 Configuration and timing/concurrency settings were unchanged. See the dated
@@ -16,12 +16,24 @@ record; query the live process to establish its current version.
 Pre-release review and build-identity verification:
 [2026-10-23 review](pending-timing-preflight-20261023.md).
 
-## Lock and packet extension (2026-10-24, not deployed)
+## Lock and packet extension (2026-10-24)
 
 The extension implements the follow-up plan from the read-only lock/P2P
 investigation. It changes diagnostic metadata only; it does not change admission,
 lock order, the announcement grace period, rejection backoff, channel capacities,
 simulation concurrency, wire encoding or notification payloads.
+
+Source `c45f3746f807e23d3981515ef5983ceb980fec95` was built from server
+`main` and deployed on 2026-10-24 at 21:00 China time. Acceptance completed at
+21:10 with configuration unchanged. The server-built and running ELF SHA256 is
+`a55718575e8a03f09137883fbdf916f45ef55705741b1f964ba82f0aec055074`.
+See the dated [release and observation record](pending-lock-p2p-release-20261024.json).
+This records that release, rather than establishing a future live version.
+The authorized 21:11:12-21:16:12 China-time capture retained a continuous event
+sequence, including a 10-second prebuffer and 45-second drain. See the
+[five-minute findings](pending-lock-p2p-observation-20261024.md) for the demote /
+price-heap lock breakdown, explicitly linked local P2P waits, rare rejection
+backoffs and the remaining uncertainty before the earliest retained read.
 
 Pages now report `schema_version=2`. Existing hash events remain sampled at 1/32.
 Records with `scope=lock` or `scope=packet` have a zero hash and **are not
