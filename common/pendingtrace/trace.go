@@ -36,9 +36,25 @@ type Event struct {
 	Parent       common.Hash `json:"parent"`
 	WaitUS       int64       `json:"wait_us,omitempty"`
 	SlackUS      int64       `json:"slack_us,omitempty"`
+	Scope        string      `json:"scope,omitempty"`
+	DurationUS   int64       `json:"duration_us,omitempty"`
+	Pool         uint64      `json:"pool,omitempty"`
+	ParentOp     uint64      `json:"parent_operation,omitempty"`
+	Connection   uint64      `json:"connection,omitempty"`
+	Packet       uint64      `json:"packet,omitempty"`
+	PacketNumber uint64      `json:"packet_number,omitempty"`
+	Previous     uint64      `json:"previous_packet,omitempty"`
+	Protocol     string      `json:"protocol,omitempty"`
+	Version      uint        `json:"protocol_version,omitempty"`
+	Code         uint64      `json:"message_code,omitempty"`
+	Buffered     int         `json:"buffered_bytes,omitempty"`
+	FrameBytes   int         `json:"frame_bytes,omitempty"`
+	BatchSize    int         `json:"batch_size,omitempty"`
+	Rejected     int         `json:"rejected,omitempty"`
 }
 
 type Page struct {
+	Schema      int     `json:"schema_version"`
 	BootID      string  `json:"boot_id"`
 	SampleEvery int     `json:"sample_every"`
 	Capacity    int     `json:"capacity"`
@@ -87,6 +103,15 @@ func RecordAt(event Event, at time.Time) {
 	}
 }
 
+// Span uses its end as the event time. Scoped records use a zero hash and are
+// not transactions. Callers publish lock spans only after releasing the lock.
+func Span(event Event, begin, end time.Time) {
+	if !begin.IsZero() && !end.IsZero() && !end.Before(begin) {
+		event.DurationUS = end.Sub(begin).Microseconds()
+		RecordAt(event, end)
+	}
+}
+
 func (r *recorder) recordAt(event Event, at time.Time) {
 	event.UnixUS = at.UnixMicro()
 	event.MonotonicUS = at.Sub(r.start).Microseconds()
@@ -107,7 +132,7 @@ func (r *recorder) snapshot(after uint64, limit int) Page {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	p := Page{BootID: r.bootID, SampleEvery: SampleEvery, Capacity: len(r.ring), Latest: r.latest, Next: after, Events: make([]Event, 0, limit)}
+	p := Page{Schema: 2, BootID: r.bootID, SampleEvery: SampleEvery, Capacity: len(r.ring), Latest: r.latest, Next: after, Events: make([]Event, 0, limit)}
 	if r.latest == 0 {
 		return p
 	}

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -200,12 +201,22 @@ var eth69 = map[uint64]msgHandler{
 
 // handleMessage is invoked whenever an inbound message is received from a remote
 // peer. The remote connection is torn down upon returning any error.
-func handleMessage(backend Backend, peer *Peer) error {
+func handleMessage(backend Backend, peer *Peer) (err error) {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := peer.rw.ReadMsg()
 	if err != nil {
 		return err
 	}
+	packet := msg.PendingPacket()
+	packet.Mark("eth_handler_begin", "", time.Now())
+	defer func() {
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+			packet.Select()
+		}
+		packet.Mark("eth_handler_end", outcome, time.Now())
+	}()
 	if msg.Size > maxMessageSize {
 		return fmt.Errorf("%w: %v > %v", errMsgTooLarge, msg.Size, maxMessageSize)
 	}
@@ -236,4 +247,12 @@ func handleMessage(backend Backend, peer *Peer) error {
 		return handler(backend, msg, peer)
 	}
 	return fmt.Errorf("%w: %v", errInvalidMsgCode, msg.Code)
+}
+
+// pendingPacket also permits test decoders which carry no transport metadata.
+func pendingPacket(msg Decoder) *pendingtrace.Packet {
+	if local, ok := msg.(interface{ PendingPacket() *pendingtrace.Packet }); ok {
+		return local.PendingPacket()
+	}
+	return nil
 }

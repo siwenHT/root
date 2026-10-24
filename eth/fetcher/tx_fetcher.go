@@ -174,6 +174,7 @@ type TxFetcher struct {
 	requests   map[string]*txRequest               // In-flight transaction retrievals
 	alternates map[common.Hash]map[string]struct{} // In-flight transaction alternate origins if retrieval fails
 
+	addTxsTraced func(string, []*types.Transaction, *pendingtrace.Packet) []error
 	// Callbacks
 	hasTx    func(common.Hash) bool                     // Retrieves a tx from the local txpool
 	addTxs   func(string, []*types.Transaction) []error // Insert a batch of transactions into local txpool
@@ -194,6 +195,13 @@ func NewTxFetcher(hasTx func(common.Hash) bool, addTxs func(string, []*types.Tra
 	f := NewTxFetcherForTests(hasTx, addTxs, fetchTxs, dropPeer, mclock.System{}, time.Now, nil)
 	f.arriveTimeout, f.arriveSlack = pendingArrivalTiming(os.Getenv("ARB_TX_ARRIVE_TIMEOUT_MS"))
 	log.Info("Pending transaction fetch timing", "arrival_wait", f.arriveTimeout, "arrival_slack", f.arriveSlack)
+	return f
+}
+
+// NewTxFetcherWithTrace uses the same fetcher and callbacks with local packet metadata.
+func NewTxFetcherWithTrace(hasTx func(common.Hash) bool, add func(string, []*types.Transaction, *pendingtrace.Packet) []error, fetch func(string, []common.Hash) error, drop func(string)) *TxFetcher {
+	f := NewTxFetcher(hasTx, func(peer string, txs []*types.Transaction) []error { return add(peer, txs, nil) }, fetch, drop)
+	f.addTxsTraced = add
 	return f
 }
 
@@ -245,8 +253,12 @@ func NewTxFetcherForTests(
 // Notify announces the fetcher of the potential availability of a new batch of
 // transactions in the network.
 func (f *TxFetcher) Notify(peer string, types []byte, sizes []uint32, hashes []common.Hash) error {
+	return f.NotifyWithTrace(peer, types, sizes, hashes, nil)
+}
+
+func (f *TxFetcher) NotifyWithTrace(peer string, types []byte, sizes []uint32, hashes []common.Hash, packet *pendingtrace.Packet) error {
 	for _, hash := range hashes {
-		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "fetch_announce", Source: "hash_announce"}, f.realTime())
+		pendingtrace.RecordAt(packet.Event(pendingtrace.Event{Hash: hash, Stage: "fetch_announce", Source: "hash_announce"}), f.realTime())
 	}
 	// Keep track of all the announced transactions
 	txAnnounceInMeter.Mark(int64(len(hashes)))
@@ -286,10 +298,19 @@ func (f *TxFetcher) Notify(peer string, types []byte, sizes []uint32, hashes []c
 		return nil
 	}
 	announce := &txAnnounce{origin: peer, hashes: unknownHashes, metas: unknownMetas}
+	begin, outcome := time.Now(), "ok"
+	defer func() {
+		end := time.Now()
+		if end.Sub(begin) >= time.Millisecond || outcome == "cancelled" {
+			packet.Select()
+		}
+		packet.Span(pendingtrace.Event{Stage: "fetch_notify_handoff", Outcome: outcome}, begin, end)
+	}()
 	select {
 	case f.notify <- announce:
 		return nil
 	case <-f.quit:
+		outcome = "cancelled"
 		return errTerminated
 	}
 }
@@ -309,6 +330,10 @@ func (f *TxFetcher) isKnownUnderpriced(hash common.Hash) bool {
 // direct request replies. The differentiation is important so the fetcher can
 // re-schedule missing transactions as soon as possible.
 func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) error {
+	return f.EnqueueWithTrace(peer, txs, direct, nil)
+}
+
+func (f *TxFetcher) EnqueueWithTrace(peer string, txs []*types.Transaction, direct bool, packet *pendingtrace.Packet) error {
 	var (
 		inMeter          = txReplyInMeter
 		knownMeter       = txReplyKnownMeter
@@ -343,8 +368,16 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 			otherreject int64
 		)
 		batch := txs[i:end]
+		batchID, addBegin := pendingtrace.NextID(), time.Now()
 
-		for j, err := range f.addTxs(peer, batch) {
+		var results []error
+		if f.addTxsTraced != nil {
+			results = f.addTxsTraced(peer, batch, packet)
+		} else {
+			results = f.addTxs(peer, batch)
+		}
+		addEnd := time.Now()
+		for j, err := range results {
 			// Track the transaction hash if the price is too low for us.
 			// Avoid re-request this transaction when we receive another
 			// announcement.
@@ -384,10 +417,16 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 		knownMeter.Mark(duplicate)
 		underpricedMeter.Mark(underpriced)
 		otherRejectMeter.Mark(otherreject)
+		if otherreject > addTxsBatchSize/4 {
+			packet.Select()
+		}
+		packet.Span(pendingtrace.Event{Stage: "fetch_admission", Operation: batchID, BatchSize: len(batch)}, addBegin, addEnd)
 
 		// If 'other reject' is >25% of the deliveries in any batch, sleep a bit.
 		if otherreject > addTxsBatchSize/4 {
+			begin := time.Now()
 			time.Sleep(200 * time.Millisecond)
+			packet.Span(pendingtrace.Event{Stage: "fetch_rejection_backoff", Operation: batchID, BatchSize: len(batch), Rejected: int(otherreject), Outcome: "other_reject"}, begin, time.Now())
 			log.Debug("Peer delivering stale transactions", "peer", peer, "rejected", otherreject)
 		}
 		// If we encountered a protocol violation, disconnect this peer.
@@ -395,10 +434,22 @@ func (f *TxFetcher) Enqueue(peer string, txs []*types.Transaction, direct bool) 
 			break
 		}
 	}
+	begin, outcome := time.Now(), "ok"
+	if violation != nil {
+		outcome = "violation"
+	}
+	defer func() {
+		end := time.Now()
+		if end.Sub(begin) >= time.Millisecond || outcome != "ok" {
+			packet.Select()
+		}
+		packet.Span(pendingtrace.Event{Stage: "fetch_cleanup_handoff", Outcome: outcome}, begin, end)
+	}()
 	select {
 	case f.cleanup <- &txDelivery{origin: peer, hashes: added, metas: metas, direct: direct, violation: violation}:
 		return nil
 	case <-f.quit:
+		outcome = "cancelled"
 		return errTerminated
 	}
 }

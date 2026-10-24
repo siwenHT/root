@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -407,14 +408,47 @@ func (p *Peer) pingLoop() {
 
 func (p *Peer) readLoop(errc chan<- error) {
 	defer p.wg.Done()
+	connection := pendingtrace.NextID()
+	var number, previous uint64
+	var previousReadEnd, previousDispatchBegin, previousDispatchEnd time.Time
 	for {
+		number++
+		readBegin := time.Now()
 		msg, err := p.rw.ReadMsg()
+		readEnd := time.Now()
+		protocol, version, code := "", uint(0), msg.Code
+		if err == nil && msg.Code >= baseProtocolLength {
+			if proto, e := p.getProto(msg.Code); e == nil {
+				protocol, version, code = proto.Name, proto.Version, msg.Code-proto.offset
+			}
+		}
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+		}
+		msg.Trace = pendingtrace.NewPacket(pendingtrace.PacketMeta{
+			Connection: connection, Number: number, Previous: previous,
+			Protocol: protocol, Version: version, Code: code,
+			ReadBegin: readBegin, ReadEnd: readEnd, Read: msg.readTiming, Outcome: outcome,
+			PreviousReadEnd: previousReadEnd, PreviousDispatchBegin: previousDispatchBegin, PreviousDispatchEnd: previousDispatchEnd,
+		})
 		if err != nil {
 			errc <- err
 			return
 		}
-		msg.ReceivedAt = time.Now()
-		if err = p.handle(msg); err != nil {
+		msg.ReceivedAt = readEnd
+		dispatchBegin := time.Now()
+		err = p.handle(msg)
+		dispatchEnd := time.Now()
+		outcome = "ok"
+		if err != nil {
+			outcome = "error"
+			msg.Trace.Select()
+		}
+		msg.Trace.Span(pendingtrace.Event{Stage: "p2p_dispatch", Outcome: outcome}, dispatchBegin, dispatchEnd)
+		previous, previousReadEnd = msg.Trace.ID, readEnd
+		previousDispatchBegin, previousDispatchEnd = dispatchBegin, dispatchEnd
+		if err != nil {
 			errc <- err
 			return
 		}
@@ -453,12 +487,30 @@ func (p *Peer) handle(msg Msg) error {
 			metrics.GetOrRegisterMeter(m, nil).Mark(int64(msg.meterSize))
 			metrics.GetOrRegisterMeter(m+"/packets", nil).Mark(1)
 		}
+		begin := time.Now()
+		msg.Trace.Mark("p2p_handoff_begin", "", begin)
+		previous := proto.lastTrace.Load()
+		outcome := "ok"
 		select {
 		case proto.in <- msg:
-			return nil
+			proto.lastTrace.Store(msg.Trace)
 		case <-p.closed:
+			outcome = "closed"
+		}
+		end := time.Now()
+		// Slow handoffs retain both packets even without a sampled hash.
+		if end.Sub(begin) >= time.Millisecond || outcome == "closed" {
+			msg.Trace.Select()
+			previous.Select()
+		}
+		msg.Trace.Mark("p2p_handoff_end", outcome, end)
+		if previous != nil {
+			msg.Trace.Span(pendingtrace.Event{Stage: "p2p_handoff_previous_handler", ParentOp: previous.ID}, begin, end)
+		}
+		if outcome == "closed" {
 			return io.EOF
 		}
+		return nil
 	}
 	return nil
 }
@@ -558,6 +610,7 @@ func (p *Peer) getProto(code uint64) (*protoRW, error) {
 }
 
 type protoRW struct {
+	lastTrace atomic.Pointer[pendingtrace.Packet]
 	Protocol
 	in     chan Msg        // receives read messages
 	closed <-chan struct{} // receives when peer is shutting down

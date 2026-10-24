@@ -18,6 +18,7 @@ package rlpx
 
 import (
 	"io"
+	"time"
 )
 
 // readBuffer implements buffering for network reads. This type is similar to bufio.Reader,
@@ -31,13 +32,17 @@ import (
 // through b.read() until the end of the packet is reached. The complete packet data is
 // now available in b.data.
 type readBuffer struct {
-	data []byte
-	end  int
+	data           []byte
+	end            int
+	lastRead       time.Time
+	ioBegin, ioEnd time.Time
+	frameBytes     int
 }
 
 // reset removes all processed data which was read since the last call to reset.
 // After reset, len(b.data) is zero.
 func (b *readBuffer) reset() {
+	b.ioBegin, b.ioEnd, b.frameBytes = time.Time{}, time.Time{}, 0
 	unprocessed := b.end - len(b.data)
 	copy(b.data[:unprocessed], b.data[len(b.data):b.end])
 	b.end = unprocessed
@@ -61,7 +66,15 @@ func (b *readBuffer) read(r io.Reader, n int) ([]byte, error) {
 	b.grow(need)
 
 	// Read.
+	begin := time.Now()
+	if b.ioBegin.IsZero() {
+		b.ioBegin = begin
+	}
 	rn, err := io.ReadAtLeast(r, b.data[b.end:cap(b.data)], need)
+	b.ioEnd = time.Now()
+	if rn > 0 {
+		b.lastRead = b.ioEnd
+	}
 	if err != nil {
 		return nil, err
 	}

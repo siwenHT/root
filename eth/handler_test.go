@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -121,6 +122,10 @@ func (p *testTxPool) GetMetadata(hash common.Hash) *txpool.TxMetadata {
 		}
 	}
 	return nil
+}
+
+func (p *testTxPool) AddWithTrace(txs []*types.Transaction, sync bool, _ *pendingtrace.Packet) []error {
+	return p.Add(txs, sync)
 }
 
 // Add appends a batch of transactions to the pool, and notifies any

@@ -16,6 +16,91 @@ record; query the live process to establish its current version.
 Pre-release review and build-identity verification:
 [2026-10-23 review](pending-timing-preflight-20261023.md).
 
+## Lock and packet extension (2026-10-24, not deployed)
+
+The extension implements the follow-up plan from the read-only lock/P2P
+investigation. It changes diagnostic metadata only; it does not change admission,
+lock order, the announcement grace period, rejection backoff, channel capacities,
+simulation concurrency, wire encoding or notification payloads.
+
+Pages now report `schema_version=2`. Existing hash events remain sampled at 1/32.
+Records with `scope=lock` or `scope=packet` have a zero hash and **are not
+transactions**. They use the same bounded ring, sequence and loss counters, so
+collectors must page often enough for the higher event rate. The analyzer
+excludes scoped records from the transaction denominator.
+
+All production acquisitions of the legacy pool RWMutex record `pool_lock_wait`
+and `pool_lock_hold`, including readers and Add calls without a sampled hash.
+`pool`, `operation`, `source` and `outcome=reader/writer` identify each holder.
+The hold endpoint is captured immediately **before** Unlock; publication is
+after Unlock. These are confirmed held intervals, not exact mutex grant times.
+Uncovered waiting time remains unknown, including timestamp resolution and
+retention gaps. Concurrent read-holder overlaps are unioned, never summed.
+
+`runReorg` records `pool_phase` spans for `reset`, `state_open`, `promote`,
+`demote`, `priced_reheap`, `pending_nonce_rebuild`, `truncate_pending` and
+`truncate_queue`. State opening is nested in reset. Head-reset-only phases are
+absent on promotion-only runs. All phase publication happens after unlock, even
+when opening state fails. Stage counts do not represent time shares.
+
+`connection` is an opaque boot-local ID; `packet_number` increments across all
+messages on that connection. `packet` is a unique operation ID and
+`previous_packet` links the read loop. `protocol`, `protocol_version` and
+`message_code` describe the **negotiated relative** code, avoiding assumptions
+about the BSC/ETH protocol offsets. This metadata follows the message through
+hash/body decoding, fetcher callbacks, aggregate admission and legacy admission.
+`parent_operation` links legacy admission to its aggregate Add operation. On a
+`p2p_handoff_previous_handler` span it instead identifies the previous packet delivered to
+that protocol handler.
+
+Packets are retained when a sampled hash selects them, every 32nd message on a
+connection, on read/handler/close/cancellation failures, on channel handoffs
+taking at least 1 ms, and on the existing 200 ms rejection-backoff branch. Slow
+P2P handoffs also retain the preceding protocol-handler packet. The four
+handoff/handler lifecycle stamps are bounded and synchronized; selecting a
+packet after a concurrent completion neither duplicates nor loses the stamps.
+Only the last delivered packet is retained per protocol; there is no peer
+history or payload retention.
+
+Packet evidence separates:
+
+- `p2p_read_gap`: the interval after the previous ReadMsg returned and before
+  this ReadMsg started, including dispatch, scheduling and diagnostic overhead.
+- `p2p_previous_dispatch`: the preceding message's dispatch, nested in that gap.
+- `p2p_read`, `rlpx_io_window`, `rlpx_frame_ready`, `rlpx_decode_done`: transport
+  reading, the window from first underlying read to last underlying completion,
+  authenticated/decrypted frame completion, and code/snappy decoding. The I/O
+  window can include computation between reads; it is not remote propagation.
+- `rlpx_prefetch_wait`: previously read bytes waiting before the next ReadMsg.
+  `buffered_bytes >= frame_bytes` with `outcome=complete_frame` proves the whole
+  frame was already in the user-space buffer. `BufferedAt` uses the latest read
+  completion contributing to the buffer, so its duration is a conservative
+  local-wait lower bound. A partial buffer does not prove a whole transaction
+  had arrived. No new socket read is fabricated for a fully prefetched frame.
+- `p2p_handoff_begin/end`, `eth_handler_begin/end`: protocol handoff and handler
+  occupancy, with explicit failure/close outcomes.
+- `fetch_admission`, `fetch_rejection_backoff`: a unique fetcher batch ID, batch
+  size, rejected count and the existing rejection bucket `other_reject`.
+  Rejection sleep is separate from `fetch_wait_begin/end` announcement grace.
+- `fetch_notify_handoff`, `fetch_cleanup_handoff`: fetcher channel waiting,
+  including cancellation and protocol-violation outcomes.
+
+The offline report's `pipeline` section contains packet links, pool phases and
+retained holder intersections. Explicit packet links improve repeated-hash
+matching, but missing/ambiguous ingress and any retention gap remain unknown.
+Gap, dispatch, handoff, prefetch and lock intervals can overlap. The report does
+not add them into an end-to-end delay or rename unexplained time as remote
+propagation. Kernel receive timestamps and peer send times are not measured;
+an empty kernel queue would also not exclude user-space prefetch.
+
+Implementation validation uses Linux Go 1.25.0 with CGO, including the affected
+packages below plus `./p2p/rlpx`, `./p2p` and `./eth`. New tests exercise real
+RWMutex contention and delayed/failed StateAt, encrypted-frame prefetch, a
+blocked protocol preventing the next transport read, closed/cancelled/error
+branches, unchanged RLP bytes and the actual 200 ms rejection sleep. Python
+tests include read-holder unions, missing owners, packet isolation and gaps.
+Run them with `python3 -B -m unittest discover -s deploy -p 'test_pending*.py'`.
+
 ## What the boundaries mean
 
 | Question | Boundaries / evidence |

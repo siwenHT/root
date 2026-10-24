@@ -11,6 +11,8 @@ import (
 type pendingPoolTrace struct {
 	hashes []common.Hash
 	id     uint64
+	parent uint64
+	packet *pendingtrace.Packet
 }
 
 func tracePendingPool(txs []*types.Transaction) pendingPoolTrace {
@@ -35,6 +37,6 @@ func (t pendingPoolTrace) now() time.Time {
 
 func (t pendingPoolTrace) mark(stage string, at time.Time) {
 	for _, hash := range t.hashes {
-		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: stage, Operation: t.id, Source: "legacy_pool"}, at)
+		pendingtrace.RecordAt(t.packet.Event(pendingtrace.Event{Hash: hash, Stage: stage, Operation: t.id, ParentOp: t.parent, Source: "legacy_pool"}), at)
 	}
 }

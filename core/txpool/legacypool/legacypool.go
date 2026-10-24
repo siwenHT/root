@@ -244,6 +244,7 @@ type LegacyPool struct {
 	scope        event.SubscriptionScope
 	signer       types.Signer
 	mu           sync.RWMutex
+	traceID      atomic.Uint64
 
 	currentHead   atomic.Pointer[types.Header] // Current head of the blockchain
 	currentState  *state.StateDB               // Current state in the blockchain head
@@ -369,9 +370,9 @@ func (pool *LegacyPool) loop() {
 
 		// Handle stats reporting ticks
 		case <-report.C:
-			pool.mu.RLock()
+			lock := pool.lockTiming("loop.stats", true, 0)
 			pending, queued := pool.stats()
-			pool.mu.RUnlock()
+			lock.unlock()
 			stales := int(pool.priced.stales.Load())
 
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
@@ -381,14 +382,14 @@ func (pool *LegacyPool) loop() {
 
 		// Handle inactive account transaction eviction
 		case <-evict.C:
-			pool.mu.Lock()
+			lock := pool.lockTiming("loop.evict", false, 0)
 			for _, hash := range pool.queue.evictList() {
 				pool.removeTx(hash, true, true)
 			}
-			pool.mu.Unlock()
+			lock.unlock()
 
 		case <-reannounce.C:
-			pool.mu.RLock()
+			lock := pool.lockTiming("loop.reannounce", true, 0)
 			reannoTxs := func() []*types.Transaction {
 				txs := make([]*types.Transaction, 0)
 				for _, list := range pool.pending {
@@ -405,7 +406,7 @@ func (pool *LegacyPool) loop() {
 				}
 				return txs
 			}()
-			pool.mu.RUnlock()
+			lock.unlock()
 			if len(reannoTxs) > 0 {
 				pool.reannoTxFeed.Send(core.ReannoTxsEvent{Txs: reannoTxs})
 			}
@@ -449,8 +450,8 @@ func (pool *LegacyPool) SubscribeReannoTxsEvent(ch chan<- core.ReannoTxsEvent) e
 // SetGasTip updates the minimum gas tip required by the transaction pool for a
 // new transaction, and drops all transactions below this threshold.
 func (pool *LegacyPool) SetGasTip(tip *big.Int) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
+	lock := pool.lockTiming("SetGasTip", false, 0)
+	defer lock.unlock()
 
 	var (
 		newTip = uint256.MustFromBig(tip)
@@ -472,8 +473,8 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *LegacyPool) Nonce(addr common.Address) uint64 {
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
+	lock := pool.lockTiming("Nonce", true, 0)
+	defer lock.unlock()
 
 	return pool.pendingNonces.get(addr)
 }
@@ -481,8 +482,8 @@ func (pool *LegacyPool) Nonce(addr common.Address) uint64 {
 // Stats retrieves the current pool stats, namely the number of pending and the
 // number of queued (non-executable) transactions.
 func (pool *LegacyPool) Stats() (int, int) {
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
+	lock := pool.lockTiming("Stats", true, 0)
+	defer lock.unlock()
 
 	return pool.stats()
 }
@@ -500,8 +501,8 @@ func (pool *LegacyPool) stats() (int, int) {
 // Content retrieves the data content of the transaction pool, returning all the
 // pending as well as queued transactions, grouped by account and sorted by nonce.
 func (pool *LegacyPool) Content() (map[common.Address][]*types.Transaction, map[common.Address][]*types.Transaction) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
+	lock := pool.lockTiming("Content", false, 0)
+	defer lock.unlock()
 
 	pending := make(map[common.Address][]*types.Transaction, len(pool.pending))
 	for addr, list := range pool.pending {
@@ -514,8 +515,8 @@ func (pool *LegacyPool) Content() (map[common.Address][]*types.Transaction, map[
 // ContentFrom retrieves the data content of the transaction pool, returning the
 // pending as well as queued transactions of this address, grouped by nonce.
 func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, []*types.Transaction) {
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
+	lock := pool.lockTiming("ContentFrom", true, 0)
+	defer lock.unlock()
 
 	var pending []*types.Transaction
 	if list, ok := pool.pending[addr]; ok {
@@ -536,8 +537,8 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 	if filter.BlobTxs {
 		return nil
 	}
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
+	lock := pool.lockTiming("Pending", true, 0)
+	defer lock.unlock()
 
 	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
 	for addr, list := range pool.pending {
@@ -964,7 +965,13 @@ func (pool *LegacyPool) addRemoteSync(tx *types.Transaction) error {
 // Note, if sync is set the method will block until all internal maintenance
 // related to the add is finished. Only use this during tests for determinism.
 func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
+	return pool.AddWithTrace(txs, sync, nil, 0)
+}
+
+// AddWithTrace carries only diagnostic packet and parent-operation identity.
+func (pool *LegacyPool) AddWithTrace(txs []*types.Transaction, sync bool, packet *pendingtrace.Packet, parent uint64) []error {
 	trace := tracePendingPool(txs)
+	trace.packet, trace.parent = packet, parent
 	trace.mark("legacy_add_begin", trace.now())
 	defer func() { trace.mark("legacy_add_end", trace.now()) }()
 	// Filter out known ones without obtaining the pool lock or recovering signatures
@@ -997,7 +1004,7 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 
 	// Only transactions reaching addTxsLocked share this mutex/promotion span.
 	// Preserve the admission ID, including when other batch entries were rejected.
-	lockTrace := pendingPoolTrace{id: trace.id}
+	lockTrace := pendingPoolTrace{id: trace.id, parent: trace.parent, packet: trace.packet}
 	if trace.id != 0 {
 		for _, tx := range news {
 			if hash := tx.Hash(); pendingtrace.Sampled(hash) {
@@ -1006,12 +1013,11 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, sync bool) []error {
 		}
 	}
 	// Process all the new transaction and merge any errors into the original slice
-	lockWaiting := lockTrace.now()
-	pool.mu.Lock()
-	lockAcquired := lockTrace.now()
+	lock := pool.lockTiming("Add", false, trace.id)
+	lock.packet, lock.parent = trace.packet, trace.parent
+	lockWaiting, lockAcquired := lock.wait, lock.acquired
 	newErrs, dirtyAddrs := pool.addTxsLocked(news)
-	pool.mu.Unlock()
-	lockReleased := lockTrace.now()
+	lockReleased := lock.unlock()
 	// Publish after unlocking so diagnostic readers cannot extend the pool lock.
 	lockTrace.mark("legacy_lock_wait", lockWaiting)
 	lockTrace.mark("legacy_lock_acquired", lockAcquired)
@@ -1068,8 +1074,8 @@ func (pool *LegacyPool) Status(hash common.Hash) txpool.TxStatus {
 	}
 	from, _ := types.Sender(pool.signer, tx) // already validated
 
-	pool.mu.RLock()
-	defer pool.mu.RUnlock()
+	lock := pool.lockTiming("Status", true, 0)
+	defer lock.unlock()
 
 	if txList := pool.pending[from]; txList != nil && txList.txs.items[tx.Nonce()] != nil {
 		return txpool.TxStatusPending
@@ -1301,7 +1307,10 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		// the flatten operation can be avoided.
 		promoteAddrs = dirtyAccounts.flatten()
 	}
-	pool.mu.Lock()
+	lock := pool.lockTiming("runReorg", false, 0)
+	var stateOpen poolPhaseTiming
+	var demoteEnd, priceEnd, nonceEnd time.Time
+	resetBegin := time.Now()
 	if reset != nil {
 		if reset.newHead != nil && reset.oldHead != nil {
 			// Discard the transactions with the gas limit higher than the cap.
@@ -1319,7 +1328,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 			}
 		}
 		// Reset from the old head to the new, rescheduling any reorged transactions
-		pool.reset(reset.oldHead, reset.newHead)
+		stateOpen = pool.reset(reset.oldHead, reset.newHead)
 
 		// Nonces were reset, discard any events that became stale
 		for addr := range events {
@@ -1331,14 +1340,17 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		// Reset needs promote for all addresses
 		promoteAddrs = pool.queue.addresses()
 	}
+	resetEnd := time.Now()
 	// Check for pending transactions for every account that sent new ones
 	promoted := pool.promoteExecutables(promoteAddrs)
+	promoteEnd := time.Now()
 
 	// If a new block appeared, validate the pool of pending transactions. This will
 	// remove any transaction that has been included in the block or was invalidated
 	// because of another transaction (e.g. higher gas price).
 	if reset != nil {
 		pool.demoteUnexecutables()
+		demoteEnd = time.Now()
 		if reset.newHead != nil {
 			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
@@ -1347,6 +1359,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 				pool.priced.Reheap()
 			}
 		}
+		priceEnd = time.Now()
 		// Update all accounts to the latest known pending nonce
 		nonces := make(map[common.Address]uint64, len(pool.pending))
 		for addr, list := range pool.pending {
@@ -1354,14 +1367,31 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 			nonces[addr] = highestPending.Nonce() + 1
 		}
 		pool.pendingNonces.setAll(nonces)
+		nonceEnd = time.Now()
 	}
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
+	truncateBegin := time.Now()
 	pool.truncatePending()
+	truncatePendingEnd := time.Now()
 	pool.truncateQueue()
+	truncateQueueEnd := time.Now()
 
 	dropBetweenReorgHistogram.Update(int64(pool.changesSinceReorg))
 	pool.changesSinceReorg = 0 // Reset change counter
-	pool.mu.Unlock()
+	lock.unlock()
+	// Publish phase records only after unlock. State opening is nested in reset.
+	if reset != nil {
+		lock.phase(poolPhaseTiming{"reset", resetBegin, resetEnd, "new_head"})
+		lock.phase(stateOpen)
+		lock.phase(poolPhaseTiming{"demote", promoteEnd, demoteEnd, ""})
+		if reset.newHead != nil {
+			lock.phase(poolPhaseTiming{"priced_reheap", demoteEnd, priceEnd, ""})
+		}
+		lock.phase(poolPhaseTiming{"pending_nonce_rebuild", priceEnd, nonceEnd, ""})
+	}
+	lock.phase(poolPhaseTiming{"promote", resetEnd, promoteEnd, ""})
+	lock.phase(poolPhaseTiming{"truncate_pending", truncateBegin, truncatePendingEnd, ""})
+	lock.phase(poolPhaseTiming{"truncate_queue", truncatePendingEnd, truncateQueueEnd, ""})
 
 	// Notify subsystems for newly added transactions
 	for _, tx := range promoted {
@@ -1387,7 +1417,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 
 // reset retrieves the current state of the blockchain and ensures the content
 // of the transaction pool is valid with regard to the chain state.
-func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
+func (pool *LegacyPool) reset(oldHead, newHead *types.Header) (stateOpen poolPhaseTiming) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 
@@ -1470,8 +1500,11 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	if newHead == nil {
 		newHead = pool.chain.CurrentBlock() // Special case during testing
 	}
+	stateOpen.name, stateOpen.begin = "state_open", time.Now()
 	statedb, err := pool.chain.StateAt(newHead.Root)
+	stateOpen.end, stateOpen.outcome = time.Now(), "ok"
 	if err != nil {
+		stateOpen.outcome = "error"
 		log.Error("Failed to reset txpool state", "err", err)
 		return
 	}
@@ -1483,6 +1516,7 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 	core.SenderCacher().Recover(pool.signer, reinject)
 	pool.addTxsLocked(reinject)
+	return
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1898,8 +1932,8 @@ func numSlots(tx *types.Transaction) int {
 // Note, do not use this in production / live code. In live code, the pool is
 // meant to reset on a separate thread to avoid DoS vectors.
 func (pool *LegacyPool) Clear() {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
+	lock := pool.lockTiming("Clear", false, 0)
+	defer lock.unlock()
 
 	// unreserve each tracked account. Ideally, we could just clear the
 	// reservation map in the parent txpool context. However, if we clear in

@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -313,7 +314,12 @@ func (p *TxPool) GetMetadata(hash common.Hash) *TxMetadata {
 // Note, if sync is set the method will block until all internal maintenance
 // related to the add is finished. Only use this during tests for determinism.
 func (p *TxPool) Add(txs []*types.Transaction, sync bool) []error {
-	finishTrace := traceAdd(txs)
+	return p.AddWithTrace(txs, sync, nil)
+}
+
+// AddWithTrace preserves packet identity across subpool admission.
+func (p *TxPool) AddWithTrace(txs []*types.Transaction, sync bool, packet *pendingtrace.Packet) []error {
+	parent, finishTrace := traceAdd(txs, packet)
 	// Split the input transactions between the subpools. It shouldn't really
 	// happen that we receive merged batches, but better graceful than strange
 	// errors.
@@ -340,7 +346,13 @@ func (p *TxPool) Add(txs []*types.Transaction, sync bool) []error {
 	// back the errors into the original sort order.
 	errsets := make([][]error, len(p.subpools))
 	for i := 0; i < len(p.subpools); i++ {
-		errsets[i] = p.subpools[i].Add(txsets[i], sync)
+		if traced, ok := p.subpools[i].(interface {
+			AddWithTrace([]*types.Transaction, bool, *pendingtrace.Packet, uint64) []error
+		}); ok {
+			errsets[i] = traced.AddWithTrace(txsets[i], sync, packet, parent)
+		} else {
+			errsets[i] = p.subpools[i].Add(txsets[i], sync)
+		}
 	}
 	errs := make([]error, len(txs))
 	for i, split := range splits {

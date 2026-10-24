@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -41,6 +42,8 @@ type Msg struct {
 	Size       uint32 // Size of the raw payload
 	Payload    io.Reader
 	ReceivedAt time.Time
+	Trace      *pendingtrace.Packet `json:"-" rlp:"-"`
+	readTiming pendingtrace.ReadTiming
 
 	meterCap  Cap    // Protocol name and version for egress metering
 	meterCode uint64 // Message within protocol for egress metering
@@ -68,6 +71,9 @@ func (msg Msg) Discard() error {
 	_, err := io.Copy(io.Discard, msg.Payload)
 	return err
 }
+
+// PendingPacket is local metadata and is never encoded on the wire.
+func (msg Msg) PendingPacket() *pendingtrace.Packet { return msg.Trace }
 
 func (msg Msg) Time() time.Time {
 	return msg.ReceivedAt
