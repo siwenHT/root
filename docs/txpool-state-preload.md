@@ -51,10 +51,12 @@ balances are not cached across roots.
 
 All Forward/Filter, removal, demotion, reservation, gap repair, heap rebuilding,
 nonce rebuilding and truncation remain in the write-locked flow. One necessary
-notification guard was added there: queued notifications for transactions no
-longer in `all` are removed. A barrier test reproduced a replacement accepted
-during warming, removed by the new head, then emitted by the next promotion-only
-round without this guard. The guard does not introduce a notification worker or
+notification guard was added there: only the current pending transaction at the
+same sender/nonce may be announced. Barrier tests reproduced replacements
+accepted during warming, then removed by an advancing nonce or demoted after a
+nonce rollback, and emitted by the next promotion-only round without this guard.
+Membership in `all` alone does not exclude a demoted queued transaction.
+The guard does not introduce a notification worker or
 change the existing post-unlock feed boundary.
 
 ## Sampled evidence

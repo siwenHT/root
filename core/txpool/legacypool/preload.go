@@ -57,15 +57,22 @@ func (pool *LegacyPool) preloadReset(reset *txpoolResetRequest, events map[commo
 	p.previous, p.previousNonces = pool.currentState, pool.pendingNonces
 	// Pending and queued maps can overlap. Value-only deduplication also covers
 	// this run's notifications, without retaining mutable lists off lock.
-	addresses := make(map[common.Address]struct{}, len(pool.pending)+len(pool.queue.queued)+len(events))
+	addresses := make([]common.Address, 0, len(pool.pending)+len(pool.queue.queued)+len(events))
 	for addr := range pool.pending {
-		addresses[addr] = struct{}{}
+		addresses = append(addresses, addr)
 	}
 	for addr := range pool.queue.queued {
-		addresses[addr] = struct{}{}
+		if _, exists := pool.pending[addr]; !exists {
+			addresses = append(addresses, addr)
+		}
 	}
 	for addr := range events {
-		addresses[addr] = struct{}{}
+		if _, exists := pool.pending[addr]; exists {
+			continue
+		}
+		if _, exists := pool.queue.queued[addr]; !exists {
+			addresses = append(addresses, addr)
+		}
 	}
 	snapshotEnd := p.now()
 	pool.mu.RUnlock()
@@ -111,7 +118,7 @@ func (pool *LegacyPool) preloadReset(reset *txpoolResetRequest, events map[commo
 			}
 		}()
 	}
-	for addr := range addresses {
+	for _, addr := range addresses {
 		statedb.GetNonce(addr) // Also loads the account's balance.
 		if statedb.Error() != nil {
 			p.state, p.nonces = nil, nil

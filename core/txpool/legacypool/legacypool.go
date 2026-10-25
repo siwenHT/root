@@ -1382,10 +1382,19 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	pool.truncateQueue()
 	truncateQueueEnd := time.Now()
 	// Admissions can overlap the off-lock state preload. A replacement queued
-	// for this or the next run may already have been removed by the new head.
+	// for this or the next run may already have been removed or demoted by the
+	// new head. Only the current pending transaction may be announced.
 	// Filter under mu, before notifications escape the original pool boundary.
 	for addr, set := range events {
-		set.Filter(func(tx *types.Transaction) bool { return pool.all.Get(tx.Hash()) == nil })
+		pending := pool.pending[addr]
+		if pending == nil {
+			delete(events, addr)
+			continue
+		}
+		set.Filter(func(tx *types.Transaction) bool {
+			current := pending.txs.Get(tx.Nonce())
+			return current == nil || current.Hash() != tx.Hash()
+		})
 		if set.Len() == 0 {
 			delete(events, addr)
 		}

@@ -369,20 +369,24 @@ func TestPreloadResetDifferential(t *testing.T) {
 }
 
 func TestPreloadConcurrentMutation(t *testing.T) {
-	for _, action := range []string{"add", "replace", "remove", "clear", "next_heads", "close"} {
+	for _, action := range []string{"add", "replace", "replace_rollback", "remove", "clear", "next_heads", "close"} {
 		t.Run(action, func(t *testing.T) {
 			keys := preloadKeys(2)
 			root := common.HexToHash("04")
 			nextRoot := common.HexToHash("05")
-			r := &preloadCountReader{Reader: preloadAccounts(keys, 1, params.Ether), calls: make(map[common.Address]int), entered: make(chan struct{}), release: make(chan struct{})}
-			pool, chain := newPreloadTestPool(t, map[common.Hash]state.Reader{{}: preloadAccounts(keys, 0, params.Ether), root: r, nextRoot: preloadAccounts(keys, 2, params.Ether)}, true)
+			initialNonce, targetNonce := uint64(0), uint64(1)
+			if action == "replace_rollback" {
+				initialNonce, targetNonce = 1, 0
+			}
+			r := &preloadCountReader{Reader: preloadAccounts(keys, targetNonce, params.Ether), calls: make(map[common.Address]int), entered: make(chan struct{}), release: make(chan struct{})}
+			pool, chain := newPreloadTestPool(t, map[common.Hash]state.Reader{{}: preloadAccounts(keys, initialNonce, params.Ether), root: r, nextRoot: preloadAccounts(keys, 2, params.Ether)}, true)
 			closed := false
 			defer func() {
 				if !closed {
 					pool.Close()
 				}
 			}()
-			tx := transaction(0, 21000, keys[0])
+			tx := transaction(initialNonce, 21000, keys[0])
 			if err := pool.addRemoteSync(tx); err != nil {
 				t.Fatal(err)
 			}
@@ -401,8 +405,8 @@ func TestPreloadConcurrentMutation(t *testing.T) {
 				if err := pool.Add([]*types.Transaction{transaction(0, 21000, keys[1])}, false)[0]; err != nil {
 					t.Fatal(err)
 				}
-			case "replace":
-				if err := pool.Add([]*types.Transaction{pricedTransaction(0, 21000, big.NewInt(2), keys[0])}, false)[0]; err != nil {
+			case "replace", "replace_rollback":
+				if err := pool.Add([]*types.Transaction{pricedTransaction(initialNonce, 21000, big.NewInt(2), keys[0])}, false)[0]; err != nil {
 					t.Fatal(err)
 				}
 			case "remove":
