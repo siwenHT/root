@@ -1,5 +1,9 @@
 # Pending notification timing
 
+Sampled price-heap comparison counts and phase costs are described in
+[reheap timing](reheap-timing.md). These additions have not been deployed by
+the implementation/validation task.
+
 Based on production source commit `a919c9a49290531f63b20564342a90e019a21ae2`.
 This change only records evidence. The 200 ms announcement grace period, 50 ms
 gather slack, txpool validation/promotion, 128-batch subscription channel,

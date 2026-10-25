@@ -246,6 +246,8 @@ type LegacyPool struct {
 	mu           sync.RWMutex
 	traceID      atomic.Uint64
 
+	reheapSequence uint64 // Head-reset rebuild count, protected by mu.
+
 	currentHead   atomic.Pointer[types.Header] // Current head of the blockchain
 	currentState  *state.StateDB               // Current state in the blockchain head
 	pendingNonces *noncer                      // Pending state tracking virtual nonces
@@ -1309,6 +1311,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	}
 	lock := pool.lockTiming("runReorg", false, 0)
 	var stateOpen poolPhaseTiming
+	var reheap *reheapTiming
 	var demoteEnd, priceEnd, nonceEnd time.Time
 	resetBegin := time.Now()
 	if reset != nil {
@@ -1352,11 +1355,12 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		pool.demoteUnexecutables()
 		demoteEnd = time.Now()
 		if reset.newHead != nil {
+			reheap = pool.sampleReheap(reset.newHead)
 			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
-				pool.priced.SetBaseFee(pendingBaseFee)
+				pool.priced.setBaseFee(pendingBaseFee, reheap)
 			} else {
-				pool.priced.Reheap()
+				pool.priced.reheap(reheap)
 			}
 		}
 		priceEnd = time.Now()
@@ -1380,6 +1384,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	pool.changesSinceReorg = 0 // Reset change counter
 	lock.unlock()
 	// Publish phase records only after unlock. State opening is nested in reset.
+	reheap.publish(lock)
 	if reset != nil {
 		lock.phase(poolPhaseTiming{"reset", resetBegin, resetEnd, "new_head"})
 		lock.phase(stateOpen)

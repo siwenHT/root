@@ -51,6 +51,8 @@ type Event struct {
 	FrameBytes   int         `json:"frame_bytes,omitempty"`
 	BatchSize    int         `json:"batch_size,omitempty"`
 	Rejected     int         `json:"rejected,omitempty"`
+
+	Reheap *ReheapStats `json:"reheap,omitempty"`
 }
 
 type Page struct {
@@ -64,6 +66,9 @@ type Page struct {
 	Overwritten uint64  `json:"overwritten"`
 	Lost        uint64  `json:"lost_since_cursor"`
 	Events      []Event `json:"events"`
+
+	ReheapRecorded    uint64 `json:"reheap_recorded"`
+	ReheapOverwritten uint64 `json:"reheap_overwritten"`
 }
 
 type recorder struct {
@@ -72,6 +77,8 @@ type recorder struct {
 	bootID string
 	ring   []Event
 	latest uint64
+
+	reheapRecorded, reheapOverwritten uint64
 }
 
 var (
@@ -113,12 +120,23 @@ func Span(event Event, begin, end time.Time) {
 }
 
 func (r *recorder) recordAt(event Event, at time.Time) {
+	if event.Reheap != nil {
+		payload := *event.Reheap
+		event.Reheap = &payload
+	}
 	event.UnixUS = at.UnixMicro()
 	event.MonotonicUS = at.Sub(r.start).Microseconds()
 	r.mu.Lock()
 	r.latest++
 	event.Sequence = r.latest
-	r.ring[(r.latest-1)%uint64(len(r.ring))] = event
+	index := (r.latest - 1) % uint64(len(r.ring))
+	if r.ring[index].Reheap != nil {
+		r.reheapOverwritten++
+	}
+	if event.Reheap != nil {
+		r.reheapRecorded++
+	}
+	r.ring[index] = event
 	r.mu.Unlock()
 }
 
@@ -133,6 +151,7 @@ func (r *recorder) snapshot(after uint64, limit int) Page {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p := Page{Schema: 2, BootID: r.bootID, SampleEvery: SampleEvery, Capacity: len(r.ring), Latest: r.latest, Next: after, Events: make([]Event, 0, limit)}
+	p.ReheapRecorded, p.ReheapOverwritten = r.reheapRecorded, r.reheapOverwritten
 	if r.latest == 0 {
 		return p
 	}
@@ -151,7 +170,12 @@ func (r *recorder) snapshot(after uint64, limit int) Page {
 	}
 	last := min(r.latest, first+uint64(limit)-1)
 	for seq := first; seq <= last; seq++ {
-		p.Events = append(p.Events, r.ring[(seq-1)%uint64(len(r.ring))])
+		event := r.ring[(seq-1)%uint64(len(r.ring))]
+		if event.Reheap != nil {
+			payload := *event.Reheap
+			event.Reheap = &payload
+		}
+		p.Events = append(p.Events, event)
 	}
 	p.Next = last
 	return p
