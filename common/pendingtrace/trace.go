@@ -52,7 +52,8 @@ type Event struct {
 	BatchSize    int         `json:"batch_size,omitempty"`
 	Rejected     int         `json:"rejected,omitempty"`
 
-	Reheap *ReheapStats `json:"reheap,omitempty"`
+	Reheap  *ReheapStats  `json:"reheap,omitempty"`
+	Preload *PreloadStats `json:"preload,omitempty"`
 }
 
 type Page struct {
@@ -120,6 +121,10 @@ func Span(event Event, begin, end time.Time) {
 }
 
 func (r *recorder) recordAt(event Event, at time.Time) {
+	if event.Preload != nil {
+		payload := *event.Preload
+		event.Preload = &payload
+	}
 	if event.Reheap != nil {
 		payload := *event.Reheap
 		event.Reheap = &payload
@@ -171,6 +176,10 @@ func (r *recorder) snapshot(after uint64, limit int) Page {
 	last := min(r.latest, first+uint64(limit)-1)
 	for seq := first; seq <= last; seq++ {
 		event := r.ring[(seq-1)%uint64(len(r.ring))]
+		if event.Preload != nil {
+			payload := *event.Preload
+			event.Preload = &payload
+		}
 		if event.Reheap != nil {
 			payload := *event.Reheap
 			event.Reheap = &payload

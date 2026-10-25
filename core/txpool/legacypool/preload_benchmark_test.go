@@ -1,14 +1,21 @@
 package legacypool
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -33,9 +40,13 @@ type preloadChain struct {
 	BlockChain
 	db     state.Database
 	reader state.Reader
+	trie   bool
 }
 
 func (c *preloadChain) StateAt(root common.Hash) (*state.StateDB, error) {
+	if c.trie {
+		return state.New(root, c.db)
+	}
 	return state.NewWithReader(root, c.db, c.reader)
 }
 
@@ -94,25 +105,95 @@ func benchmarkPreloadPool(b *testing.B, accounts int) *LegacyPool {
 	return pool
 }
 
-func BenchmarkResetPreload(b *testing.B) {
+// Linux process ticks include concurrent GC CPU. The runner records CLK_TCK;
+// quantization is 10ms on the measurement host, so use multiple paired rounds.
+func preloadCPUTicks() uint64 {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0
+	}
+	text := string(data)
+	fields := strings.Fields(text[strings.LastIndex(text, ")")+1:])
+	u, _ := strconv.ParseUint(fields[11], 10, 64)
+	s, _ := strconv.ParseUint(fields[12], 10, 64)
+	return u + s
+}
+
+func BenchmarkResetPreload(b *testing.B)        { benchmarkResetPreload(b, false, false) }
+func BenchmarkResetPreloadSampled(b *testing.B) { benchmarkResetPreload(b, true, false) }
+func BenchmarkResetPreloadTrie(b *testing.B)    { benchmarkResetPreload(b, false, true) }
+
+func benchmarkResetPreload(b *testing.B, sampled, trie bool) {
 	for _, size := range []int{37275, 80000} {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {
 			pool := benchmarkPreloadPool(b, size)
+			if trie {
+				chain := pool.chain.(*preloadChain)
+				ledger, err := state.New(types.EmptyRootHash, chain.db)
+				if err != nil {
+					b.Fatal(err)
+				}
+				for addr := range pool.pending {
+					ledger.AddBalance(addr, uint256.NewInt(1000000000000000000), tracing.BalanceChangeUnspecified)
+				}
+				for addr := range pool.queue.queued {
+					ledger.AddBalance(addr, uint256.NewInt(1000000000000000000), tracing.BalanceChangeUnspecified)
+				}
+				root, err := ledger.Commit(0, true, false)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if err := chain.db.TrieDB().Commit(root, false); err != nil {
+					b.Fatal(err)
+				}
+				chain.trie = true
+				head := types.CopyHeader(pool.currentHead.Load())
+				head.Root = root
+				pool.currentHead.Store(head)
+				pool.currentState, err = chain.StateAt(root)
+				if err != nil {
+					b.Fatal(err)
+				}
+				pool.pendingNonces = newNoncer(pool.currentState)
+			}
 			var held, waited, resetNS, demoteNS int64
+			var cpuTicks, pause uint64
+			var gc uint32
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
+				if sampled {
+					pool.reheapSequence = 31
+				}
 				before := pendingtrace.Snapshot(math.MaxUint64, 1).Latest
 				old := pool.currentHead.Load()
 				head := preloadHead(old, common.BigToHash(big.NewInt(int64(i+1))))
+				if trie {
+					head.Root = old.Root
+				}
 				done := make(chan struct{})
+				var memBefore, memAfter runtime.MemStats
+				runtime.ReadMemStats(&memBefore)
+				cpuBefore := preloadCPUTicks()
 				b.StartTimer()
+				begin := time.Now()
 				pool.runReorg(done, &txpoolResetRequest{oldHead: old, newHead: head}, nil, nil)
+				total := time.Since(begin)
 				b.StopTimer()
+				cpuTicks += preloadCPUTicks() - cpuBefore
+				runtime.ReadMemStats(&memAfter)
+				gc += memAfter.NumGC - memBefore.NumGC
+				pause += memAfter.PauseTotalNs - memBefore.PauseTotalNs
+				var roundHold int64
 				for _, e := range pendingtrace.Snapshot(before, pendingtrace.MaxPage).Events {
+					if e.Scope == "preload" {
+						data, _ := json.Marshal(e)
+						b.Logf("PRELOAD_SAMPLE %s", data)
+					}
 					if e.Source == "runReorg" && e.Stage == "pool_lock_hold" {
 						held += e.DurationUS * 1000
+						roundHold = e.DurationUS * 1000
 					}
 					if e.Source == "runReorg" && e.Stage == "pool_lock_wait" {
 						waited += e.DurationUS * 1000
@@ -124,6 +205,7 @@ func BenchmarkResetPreload(b *testing.B) {
 						demoteNS += e.DurationUS * 1000
 					}
 				}
+				b.Logf("RESET_SAMPLE size=%d total_ns=%d hold_ns=%d", size, total.Nanoseconds(), roundHold)
 				if pool.currentHead.Load() != head || pool.all.Count() != size+1170+1973 {
 					b.Fatal("reset changed fixture")
 				}
@@ -134,6 +216,9 @@ func BenchmarkResetPreload(b *testing.B) {
 			b.ReportMetric(float64(waited)/float64(b.N), "wait-ns/op")
 			b.ReportMetric(float64(resetNS)/float64(b.N), "reset-ns/op")
 			b.ReportMetric(float64(demoteNS)/float64(b.N), "demote-ns/op")
+			b.ReportMetric(float64(cpuTicks)*1e7/float64(b.N), "cpu-ns/op")
+			b.ReportMetric(float64(gc)/float64(b.N), "gc/op")
+			b.ReportMetric(float64(pause)/float64(b.N), "gc-pause-ns/op")
 		})
 	}
 }

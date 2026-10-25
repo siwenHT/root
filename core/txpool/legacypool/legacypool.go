@@ -1309,7 +1309,9 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		// the flatten operation can be avoided.
 		promoteAddrs = dirtyAccounts.flatten()
 	}
+	prepared := pool.preloadReset(reset, events)
 	lock := pool.lockTiming("runReorg", false, 0)
+	defer prepared.publish(lock)
 	var stateOpen poolPhaseTiming
 	var reheap *reheapTiming
 	var demoteEnd, priceEnd, nonceEnd time.Time
@@ -1331,7 +1333,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 			}
 		}
 		// Reset from the old head to the new, rescheduling any reorged transactions
-		stateOpen = pool.reset(reset.oldHead, reset.newHead)
+		stateOpen = pool.resetWithPreload(reset.oldHead, reset.newHead, prepared)
 
 		// Nonces were reset, discard any events that became stale
 		for addr := range events {
@@ -1379,10 +1381,23 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	truncatePendingEnd := time.Now()
 	pool.truncateQueue()
 	truncateQueueEnd := time.Now()
+	// Admissions can overlap the off-lock state preload. A replacement queued
+	// for this or the next run may already have been removed by the new head.
+	// Filter under mu, before notifications escape the original pool boundary.
+	for addr, set := range events {
+		set.Filter(func(tx *types.Transaction) bool { return pool.all.Get(tx.Hash()) == nil })
+		if set.Len() == 0 {
+			delete(events, addr)
+		}
+	}
 
 	dropBetweenReorgHistogram.Update(int64(pool.changesSinceReorg))
 	pool.changesSinceReorg = 0 // Reset change counter
-	lock.unlock()
+	prepared.finishLocked(lock)
+	released := lock.unlock()
+	if prepared != nil && prepared.stats != nil {
+		prepared.stats.RunToUnlockUS = released.Sub(prepared.begin).Microseconds()
+	}
 	// Publish phase records only after unlock. State opening is nested in reset.
 	reheap.publish(lock)
 	if reset != nil {
@@ -1423,6 +1438,10 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 // reset retrieves the current state of the blockchain and ensures the content
 // of the transaction pool is valid with regard to the chain state.
 func (pool *LegacyPool) reset(oldHead, newHead *types.Header) (stateOpen poolPhaseTiming) {
+	return pool.resetWithPreload(oldHead, newHead, nil)
+}
+
+func (pool *LegacyPool) resetWithPreload(oldHead, newHead *types.Header, prepared *resetPreload) (stateOpen poolPhaseTiming) {
 	// If we're reorging an old state, reinject all dropped transactions
 	var reinject types.Transactions
 
@@ -1506,7 +1525,26 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) (stateOpen poolPha
 		newHead = pool.chain.CurrentBlock() // Special case during testing
 	}
 	stateOpen.name, stateOpen.begin = "state_open", time.Now()
-	statedb, err := pool.chain.StateAt(newHead.Root)
+	var statedb *state.StateDB
+	var nonces *noncer
+	var err error
+	if prepared.valid(pool, oldHead, newHead) {
+		statedb, nonces = prepared.state, prepared.nonces
+		prepared.outcome = "adopted"
+	} else {
+		if prepared != nil && prepared.outcome == "prepared" {
+			prepared.outcome = "view_changed"
+		}
+		if prepared != nil {
+			prepared.state, prepared.nonces = nil, nil
+		}
+		statedb, err = pool.chain.StateAt(newHead.Root)
+	}
+	if prepared != nil {
+		// The identity check is complete. Don't retain the old account objects
+		// through demotion, heap rebuilding or a slow notification subscriber.
+		prepared.previous, prepared.previousNonces = nil, nil
+	}
 	stateOpen.end, stateOpen.outcome = time.Now(), "ok"
 	if err != nil {
 		stateOpen.outcome = "error"
@@ -1515,7 +1553,13 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) (stateOpen poolPha
 	}
 	pool.currentHead.Store(newHead)
 	pool.currentState = statedb
-	pool.pendingNonces = newNoncer(statedb)
+	if nonces == nil {
+		nonces = newNoncer(statedb)
+	}
+	pool.pendingNonces = nonces
+	if prepared != nil && prepared.stats != nil {
+		prepared.stats.RunToInstallUS = time.Since(prepared.begin).Microseconds()
+	}
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
