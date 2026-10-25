@@ -156,6 +156,11 @@ func benchmarkResetPreload(b *testing.B, sampled, trie bool) {
 				}
 				pool.pendingNonces = newNoncer(pool.currentState)
 			}
+			// Include the actual scheduler handoff, queue wait and Reset's done
+			// channel in caller-visible head-reset latency, not just runReorg.
+			pool.wg.Add(1)
+			go pool.scheduleReorgLoop()
+			defer pool.Close()
 			var held, waited, resetNS, demoteNS int64
 			var cpuTicks, pause uint64
 			var gc uint32
@@ -172,13 +177,12 @@ func benchmarkResetPreload(b *testing.B, sampled, trie bool) {
 				if trie {
 					head.Root = old.Root
 				}
-				done := make(chan struct{})
 				var memBefore, memAfter runtime.MemStats
 				runtime.ReadMemStats(&memBefore)
 				cpuBefore := preloadCPUTicks()
 				b.StartTimer()
 				begin := time.Now()
-				pool.runReorg(done, &txpoolResetRequest{oldHead: old, newHead: head}, nil, nil)
+				pool.Reset(old, head)
 				total := time.Since(begin)
 				b.StopTimer()
 				cpuTicks += preloadCPUTicks() - cpuBefore

@@ -112,7 +112,8 @@ models physical disk coldness or replays production account state.
 Ten alternating-order paired runs use five measured rounds per shape, one Go
 toolchain and fixed CPU affinity. Both binaries use the identical final test
 harness; a Go source overlay restores the original runtime for the baseline.
-Whole-reset completion, actual write hold, CPU (Linux process ticks), allocation
+Caller-visible `Reset` request-to-done latency (including its real scheduler
+handoff), actual write hold, CPU (Linux process ticks), allocation
 bytes/count and GC are reported. CPU includes concurrent GC and has 10ms tick
 quantization. Setup, trace extraction and benchmark logging are outside timed
 and allocation intervals. Report per-round hold/completion percentiles as well
