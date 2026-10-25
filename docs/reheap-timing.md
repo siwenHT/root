@@ -8,6 +8,9 @@ counter advances for each actual rebuild, including an empty pool. Rounds 32,
 64, ... collect a complete sample. Promotion-only calls and missing new heads
 do not advance it. The requested new head is recorded; join `state_open` by
 parent operation to identify a failed state reset rather than assuming it worked.
+Stale-triggered `Reheap` calls outside head reset retain the normal path and are
+outside this denominator. Sampling is systematic rather than random; a short
+capture may miss a transient round.
 
 Normal `priceHeap.Less/cmp` and `Transaction.EffectiveGasTipCmp` are unchanged.
 Sampled rounds use a heap wrapper and `EffectiveGasTipCmpWithPath`, which mirrors
@@ -69,3 +72,42 @@ scale; transaction layout and queue contents are synthetic. Fixed-seed inputs
 do not reproduce live map iteration order. CPU profiles remain separate evidence;
 CPU sample counts are not comparison counts, and wall time divided by comparisons
 is not CPU time per comparison. Quantified local results are recorded separately.
+
+## Local validation, 2026-10-25
+
+The [machine-readable report](reheap-diagnostics-validation-20261025.json) binds
+the baseline and implementation commits, fixture hash, test evidence hashes,
+benchmark executable hashes, paired confidence intervals and a complete test
+payload. Six package suites, targeted race tests and in-process RPC tests passed.
+There are 58,800 direct comparator comparisons and nine frozen real-pool heap
+scenarios, plus malformed caps, ties, eviction and failure branches.
+
+Ten alternated-order paired runs on one pinned WSL CPU measured the following.
+Time is median milliseconds per rebuild. Overheads are paired geometric means
+against the baseline, not ratios of the displayed medians.
+
+| Transactions | Baseline | Ordinary new | Sampled round | Exact 1/32 cycle, per rebuild |
+| --- | ---: | ---: | ---: | ---: |
+| 39,168 | 45.07 | 43.06 | 45.21 | 43.57 |
+| 80,000 | 126.33 | 127.44 | 136.87 | 125.66 |
+
+At 80,000 transactions a forced sampled round adds 10.60% versus baseline
+(paired bootstrap 95% interval +3.59% to +19.63%). At 39,168 it adds 0.93%
+(-3.46% to +5.03%). The 1/32 cycle measures -3.12% (-8.04% to +1.48%) and
+-0.13% (-2.41% to +2.02%), respectively. These intervals do not establish a
+speedup or zero overhead. The report also compares diagnostics with the ordinary
+new implementation; the 80,000-transaction sampled increment is 11.15%
+(+5.55% to +19.19%).
+
+Ordinary retained event recording increases from 126.15 to 143.85 ns/call
+(+13.80%, interval +12.60% to +15.02%), with zero allocations in both cases.
+The existing sampling rejection path remains around 24 ns/call. Thus the patch
+has a small fixed recorder cost outside sampled rebuilds as well. There is no
+production event-rate extrapolation in these local results.
+
+One full fixture test recorded 73,749 urgent-init comparisons, 220,864 urgent
+pop comparisons and 7,832 floating-init comparisons. All 294,613 urgent effective
+tip comparisons used the zero fast branch; the floating comparisons used nil
+base fee. Counts vary with lookup iteration order. Its injected mutex wait and
+phase durations are test data, not production measurements. No production
+configuration, process or binary was changed during this validation.

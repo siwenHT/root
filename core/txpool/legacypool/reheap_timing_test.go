@@ -2,6 +2,7 @@ package legacypool
 
 import (
 	"container/heap"
+	"encoding/json"
 	"math"
 	"math/big"
 	"slices"
@@ -216,6 +217,11 @@ func TestReheapFullInputAndMutexWait(t *testing.T) {
 		t.Fatal("floating heap inherited urgent base fee")
 	}
 	checkReheapCounters(t, d)
+	payload, err := json.Marshal(d.stats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("reheap_sample=%s", payload)
 }
 
 func TestReheapPublicationAfterLocks(t *testing.T) {

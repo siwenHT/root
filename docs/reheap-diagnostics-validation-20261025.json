@@ -1,0 +1,551 @@
+{
+  "created_utc": "2026-10-25T02:40:20.351180+00:00",
+  "environment": {
+    "utc": "2026-10-25T02:33:01.899465+00:00",
+    "cpu": "Intel(R) Xeon(R) CPU E5-2690 v4 @ 2.60GHz",
+    "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "affinity": [
+      0
+    ],
+    "go_version": "go1.25.0",
+    "gomaxprocs": 1,
+    "tags": "ckzg",
+    "identities": {
+      "baseline-priced.test": {
+        "bytes": 55981784,
+        "sha256": "df574ce8849626b138de61acb37cd9f46ee3d2d05994cc15366b37e1cfb2b956"
+      },
+      "patch-priced.test": {
+        "bytes": 56057856,
+        "sha256": "380890e867e3d8ede8542418fbec5cc9bca05882e821b37bb379af86ae7ee2ae"
+      },
+      "baseline-trace.test": {
+        "bytes": 4557755,
+        "sha256": "d880bfb2c004dfd72c35f5d940d04d4a8004e6803979c8ba7188dc2764e3a5c3"
+      },
+      "patch-trace.test": {
+        "bytes": 5067866,
+        "sha256": "908f2cf891390b30f2493e175e752a94b775259bae77437fcfde5ddedec3f6d7"
+      },
+      "baseline-types.test": {
+        "bytes": 31357296,
+        "sha256": "33b1fdf13870df12bf566f3081fcf7640bfca792931fe1735f7b901eb979ae5a"
+      },
+      "patch-types.test": {
+        "bytes": 31368744,
+        "sha256": "fd03cdc705ebba07d4b617a799c33524c0f5f0deb65a2d201449226d065d615a"
+      }
+    },
+    "method": "10 paired runs, alternating order, 500ms per sub-benchmark; exact 32-round cycles for one_in_32; normalize ns/allocations by rebuilds/op."
+  },
+  "baseline_source": "ee906331a29456053289249c71dc6c64fb99e41d",
+  "implementation_source": "1ea291c8597eeb176589945f559ebbd68ac0ac75",
+  "results": {
+    "normal/39168": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 45068567.0,
+      "patch_median_ns_per_rebuild_or_call": 43059927.5,
+      "paired_geomean_overhead_percent": -1.8116628554649017,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -6.537749888262113,
+        3.4027944351489703
+      ],
+      "baseline_median_bytes": 404374.5,
+      "patch_median_bytes": 403598.5,
+      "baseline_median_allocs": 606.0,
+      "patch_median_allocs": 582.0
+    },
+    "sampled/39168": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 45068567.0,
+      "patch_median_ns_per_rebuild_or_call": 45209912.5,
+      "paired_geomean_overhead_percent": 0.9253506766822683,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -3.464225626804096,
+        5.025852195751601
+      ],
+      "baseline_median_bytes": 404374.5,
+      "patch_median_bytes": 406935.5,
+      "baseline_median_allocs": 606.0,
+      "patch_median_allocs": 599.5
+    },
+    "one_in_32/39168": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 45068567.0,
+      "patch_median_ns_per_rebuild_or_call": 43574790.1875,
+      "paired_geomean_overhead_percent": -3.1193670677191587,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -8.041741034435368,
+        1.4813057602972135
+      ],
+      "baseline_median_bytes": 404374.5,
+      "patch_median_bytes": 403747.0,
+      "baseline_median_allocs": 606.0,
+      "patch_median_allocs": 583.65625
+    },
+    "normal/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 126331064.0,
+      "patch_median_ns_per_rebuild_or_call": 127437003.5,
+      "paired_geomean_overhead_percent": -0.48669276926804894,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -4.929222552899448,
+        3.8128177832150723
+      ],
+      "baseline_median_bytes": 818704.0,
+      "patch_median_bytes": 818104.0,
+      "baseline_median_allocs": 1266.0,
+      "patch_median_allocs": 1247.5
+    },
+    "sampled/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 126331064.0,
+      "patch_median_ns_per_rebuild_or_call": 136865899.0,
+      "paired_geomean_overhead_percent": 10.604390379562156,
+      "paired_bootstrap_overhead_ci95_percent": [
+        3.5892660664948117,
+        19.63492554019797
+      ],
+      "baseline_median_bytes": 818704.0,
+      "patch_median_bytes": 821648.0,
+      "baseline_median_allocs": 1266.0,
+      "patch_median_allocs": 1267.0
+    },
+    "one_in_32/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 126331064.0,
+      "patch_median_ns_per_rebuild_or_call": 125663690.5625,
+      "paired_geomean_overhead_percent": -0.12693690677235692,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -2.4108581715691524,
+        2.0197268763854526
+      ],
+      "baseline_median_bytes": 818704.0,
+      "patch_median_bytes": 819179.0,
+      "baseline_median_allocs": 1266.0,
+      "patch_median_allocs": 1277.90625
+    },
+    "record/sampled": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 126.15,
+      "patch_median_ns_per_rebuild_or_call": 143.85,
+      "paired_geomean_overhead_percent": 13.804385472819947,
+      "paired_bootstrap_overhead_ci95_percent": [
+        12.604241156285223,
+        15.01666782215867
+      ],
+      "baseline_median_bytes": 0.0,
+      "patch_median_bytes": 0.0,
+      "baseline_median_allocs": 0.0,
+      "patch_median_allocs": 0.0
+    },
+    "record/unsampled": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 24.18,
+      "patch_median_ns_per_rebuild_or_call": 23.55,
+      "paired_geomean_overhead_percent": -2.0439257410380107,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -3.5595222393840387,
+        -0.24092320390377564
+      ],
+      "baseline_median_bytes": 0.0,
+      "patch_median_bytes": 0.0,
+      "baseline_median_allocs": 0.0,
+      "patch_median_allocs": 0.0
+    },
+    "normal_tip_comparator/type0": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 38.085,
+      "patch_median_ns_per_rebuild_or_call": 37.89,
+      "paired_geomean_overhead_percent": 0.13070677215114568,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -1.613801426258632,
+        1.9888294900977987
+      ],
+      "baseline_median_bytes": 0.0,
+      "patch_median_bytes": 0.0,
+      "baseline_median_allocs": 0.0,
+      "patch_median_allocs": 0.0
+    },
+    "normal_tip_comparator/type2": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 46.21,
+      "patch_median_ns_per_rebuild_or_call": 45.475,
+      "paired_geomean_overhead_percent": -2.195123783854125,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -4.597131097205686,
+        0.3830686239036485
+      ],
+      "baseline_median_bytes": 0.0,
+      "patch_median_bytes": 0.0,
+      "baseline_median_allocs": 0.0,
+      "patch_median_allocs": 0.0
+    },
+    "sampled_vs_normal/39168": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 43059927.5,
+      "patch_median_ns_per_rebuild_or_call": 45209912.5,
+      "paired_geomean_overhead_percent": 2.787513885807269,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -1.1837667614781666,
+        6.612064429751241
+      ],
+      "baseline_median_bytes": 403598.5,
+      "patch_median_bytes": 406935.5,
+      "baseline_median_allocs": 582.0,
+      "patch_median_allocs": 599.5
+    },
+    "one_in_32_vs_normal/39168": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 43059927.5,
+      "patch_median_ns_per_rebuild_or_call": 43574790.1875,
+      "paired_geomean_overhead_percent": -1.3318325274511045,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -5.789552843587642,
+        2.428869046676696
+      ],
+      "baseline_median_bytes": 403598.5,
+      "patch_median_bytes": 403747.0,
+      "baseline_median_allocs": 582.0,
+      "patch_median_allocs": 583.65625
+    },
+    "sampled_vs_normal/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 127437003.5,
+      "patch_median_ns_per_rebuild_or_call": 136865899.0,
+      "paired_geomean_overhead_percent": 11.145326647736042,
+      "paired_bootstrap_overhead_ci95_percent": [
+        5.553444039655164,
+        19.186710752278515
+      ],
+      "baseline_median_bytes": 818104.0,
+      "patch_median_bytes": 821648.0,
+      "baseline_median_allocs": 1247.5,
+      "patch_median_allocs": 1267.0
+    },
+    "one_in_32_vs_normal/80000": {
+      "pairs": 10,
+      "baseline_median_ns_per_rebuild_or_call": 127437003.5,
+      "patch_median_ns_per_rebuild_or_call": 125663690.5625,
+      "paired_geomean_overhead_percent": 0.3615153314737718,
+      "paired_bootstrap_overhead_ci95_percent": [
+        -2.9245524771108755,
+        3.854744856851089
+      ],
+      "baseline_median_bytes": 818104.0,
+      "patch_median_bytes": 819179.0,
+      "baseline_median_allocs": 1247.5,
+      "patch_median_allocs": 1277.90625
+    }
+  },
+  "comparison_counts_in_sampled_benchmark": {
+    "BenchmarkReheapDiagnostics/sampled/39168": {
+      "median": 302338.0,
+      "min": 302289.0,
+      "max": 302380.0
+    },
+    "BenchmarkReheapDiagnostics/one_in_32/39168": {
+      "median": 302330.5,
+      "min": 302227.0,
+      "max": 302623.0
+    },
+    "BenchmarkReheapDiagnostics/sampled/80000": {
+      "median": 650667.5,
+      "min": 650518.0,
+      "max": 650828.0
+    },
+    "BenchmarkReheapDiagnostics/one_in_32/80000": {
+      "median": 650623.0,
+      "min": 650287.0,
+      "max": 650926.0
+    }
+  },
+  "limits": [
+    "Local pinned single-CPU WSL benchmarks, not a production performance claim.",
+    "Transaction key distributions are real, recipients/payload layout and queue contents are synthetic.",
+    "Lookup map iteration order varies across runs. Exact comparison and output equivalence are tested separately on frozen input orders.",
+    "A sampled round uses an instrumented comparator and has observer overhead; wall-time/call-count is not CPU time per call.",
+    "Normal rebuild case omits the cheap head sampling decision; exact one-in-32 cycles include it, sample setup, counters, timing, ring publication and payload copying.",
+    "Confidence intervals resample paired log ratios, not unpaired medians."
+  ],
+  "validation": {
+    "targeted": {
+      "packages": [
+        "github.com/ethereum/go-ethereum/common/pendingtrace",
+        "github.com/ethereum/go-ethereum/core/types",
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool"
+      ],
+      "test_pass_events": 28,
+      "sha256_jsonl": "7683e3ccf5146dcac73cb6a5ed95b1826dad4df310c5ac239d80aae7e5d856b9"
+    },
+    "full": {
+      "packages": [
+        "github.com/ethereum/go-ethereum/common/pendingtrace",
+        "github.com/ethereum/go-ethereum/core/types",
+        "github.com/ethereum/go-ethereum/core/txpool",
+        "github.com/ethereum/go-ethereum/internal/ethapi",
+        "github.com/ethereum/go-ethereum/miner",
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool"
+      ],
+      "test_pass_events": 287,
+      "sha256_jsonl": "41457d51948521e09d260853c7bc2da55254db0bc8dba1f65499b4dd61031f55"
+    },
+    "race": {
+      "packages": [
+        "github.com/ethereum/go-ethereum/common/pendingtrace",
+        "github.com/ethereum/go-ethereum/core/types",
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool"
+      ],
+      "test_pass_events": 25,
+      "sha256_jsonl": "0c49f7f185a68aa38499a72b1b48084225d5be2317102314bb738f5c3c5eece5"
+    },
+    "wire": {
+      "packages": [
+        "github.com/ethereum/go-ethereum/internal/ethapi",
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool"
+      ],
+      "test_pass_events": 4,
+      "sha256_jsonl": "ef111f098b2a52bbb1a2048117edc4cde7e86efe41ba16b638169f7fc1997e2b"
+    }
+  },
+  "validation_notes": [
+    "Full package suite passed, then malformed-cap coverage passed under race and the added RPC payload test passed separately. Runtime source is unchanged since implementation_source.",
+    "The first race invocation passed all Go packages but its shell wrapper failed after an on-disk script edit. It is not counted as a successful invocation. An immutable wrapper rerun exited zero; race-first.* retains the original evidence.",
+    "58,800 direct comparator pairs cover all five supported transaction types, nil/zero/nonzero base fee, negative and overflow caps. Nine frozen real-pool heap cases cover three permutations and three base-fee values.",
+    "Heap arrays, exact comparator calls, Underpriced, Discard and failed-capacity rollback are differential checked against the normal comparator.",
+    "RPC integration verifies the nested matrix, correlation fields, additive schema and cumulative counters. Recorder tests cover immutable payloads and overwrite/cursor-loss semantics.",
+    "The example below has an intentionally injected mutex wait. Its wall times are a test trace, not a pinned benchmark or a production sample.",
+    "Allocations vary with lookup-map ordering and comparison participation of SetCode transactions; allocation differences between separate processes are not exact instrumentation allocation counts."
+  ],
+  "test_sample": {
+    "version": 0,
+    "rebuild": 0,
+    "sample_every": 0,
+    "head": 0,
+    "transactions": 39168,
+    "pending": 38430,
+    "queued": 738,
+    "pending_accounts": 0,
+    "queued_accounts": 0,
+    "type_counts": [
+      34241,
+      340,
+      4575,
+      0,
+      12,
+      0
+    ],
+    "stales_before": 0,
+    "urgent_before": 31335,
+    "floating_before": 7833,
+    "urgent_after": 31335,
+    "floating_after": 7833,
+    "mutex_wait_us": 20403,
+    "lookup_us": 3294,
+    "total_us": 51935,
+    "stages": [
+      {
+        "duration_us": 17774,
+        "comparisons": 73749,
+        "nil_base_fee": 0,
+        "zero_fast": 73749,
+        "zero_guard_fallback": 0,
+        "nonzero_base_fee": 0,
+        "effective_tip_equal": 4764,
+        "fee_cap_equal": 4697,
+        "tip_cap_equal": 4697,
+        "nonce_compared": 4697,
+        "nonce_equal": 304,
+        "type_pairs": [
+          [
+            51197,
+            689,
+            7636,
+            0,
+            11,
+            0
+          ],
+          [
+            1435,
+            51,
+            267,
+            0,
+            0,
+            0
+          ],
+          [
+            10426,
+            222,
+            1799,
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            13,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      {
+        "duration_us": 29140,
+        "comparisons": 220864,
+        "nil_base_fee": 0,
+        "zero_fast": 220864,
+        "zero_guard_fallback": 0,
+        "nonzero_base_fee": 0,
+        "effective_tip_equal": 51271,
+        "fee_cap_equal": 50653,
+        "tip_cap_equal": 50653,
+        "nonce_compared": 50653,
+        "nonce_equal": 19166,
+        "type_pairs": [
+          [
+            165725,
+            1727,
+            17000,
+            0,
+            50,
+            0
+          ],
+          [
+            4447,
+            873,
+            669,
+            0,
+            8,
+            0
+          ],
+          [
+            23441,
+            457,
+            6416,
+            0,
+            14,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            34,
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      {
+        "duration_us": 1724,
+        "comparisons": 7832,
+        "nil_base_fee": 7832,
+        "zero_fast": 0,
+        "zero_guard_fallback": 0,
+        "nonzero_base_fee": 0,
+        "effective_tip_equal": 0,
+        "fee_cap_equal": 4692,
+        "tip_cap_equal": 4691,
+        "nonce_compared": 4691,
+        "nonce_equal": 2895,
+        "type_pairs": [
+          [
+            5048,
+            139,
+            1152,
+            0,
+            0,
+            0
+          ],
+          [
+            140,
+            95,
+            54,
+            0,
+            0,
+            0
+          ],
+          [
+            642,
+            53,
+            508,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    ]
+  },
+  "fixture_sha256": "1aa8003cfce0934b1281b9f115690e0cf6aaa1b945fc96a6fcb8009c2b78e306",
+  "deployment": {
+    "deployed": false,
+    "production_config_changed": false,
+    "production_restarted": false
+  },
+  "reproduce": [
+    "Go 1.25.0, CGO_ENABLED=1, -tags ckzg, -mod=readonly; full: go test ./common/pendingtrace ./core/types ./core/txpool/legacypool ./core/txpool ./miner ./internal/ethapi -count=1",
+    "Race: go test -race ./common/pendingtrace ./core/types ./core/txpool/legacypool -run \"TestReheap|TestDiagnostic|TestPendingLock|TestPriceHeapOrderingDifferential|TestPricedListEvictionDifferential|TestEffectiveGasTipCmp\" -count=1",
+    "Compile package test binaries with go test -c -tags ckzg. Run baseline at baseline_source, patch at implementation_source; GOMAXPROCS=1, taskset on CPU 0, -test.run=^$ -test.benchtime=500ms -test.benchmem.",
+    "BenchmarkReheapRealPool at both commits; BenchmarkReheapDiagnostics in patch; BenchmarkRecord/sample and unsampled; BenchmarkEffectiveGasTipCmpBaseFee/type(0|2)/base0. Ten paired alternated-order invocations; exact 32-rebuild cycles normalized by rebuilds/op."
+  ],
+  "local_evidence_directory": "D:\\workSpace\\.codex-build\\node-reheap-diagnostics-20261025"
+}
