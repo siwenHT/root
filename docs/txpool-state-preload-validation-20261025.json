@@ -1,0 +1,647 @@
+{
+  "status": "implemented_locally_not_deployed",
+  "date": "2026-10-25",
+  "code_commit": "21b634008cd3bd7c51567aad5649a18f68126873",
+  "runtime_commit": "e1ab04ee14dfdf033761a25b4bd97c8e08ac28a2",
+  "baseline_runtime_commit": "d1fe248466ba13b47ccfe67eb143f6491b683512",
+  "baseline_harness_commit": "e11611a",
+  "baseline_method": "Go overlay restores original runtime and removes new runtime/tests; identical final benchmark harness",
+  "production_contacted": false,
+  "production_configuration_changed": false,
+  "production_restarted": false,
+  "safeguards": [
+    "exclusive StateAtForPool capability",
+    "newNoncer before warming",
+    "head/root/state/noncer identity guard",
+    "Clear invalidation",
+    "original fallback",
+    "single existing executor",
+    "stale notification membership filter"
+  ],
+  "tests": {
+    "full": {
+      "packages": {
+        "github.com/ethereum/go-ethereum/common/pendingtrace": {
+          "action": "pass",
+          "elapsed": 0.036
+        },
+        "github.com/ethereum/go-ethereum/core/txpool": {
+          "action": "pass",
+          "elapsed": 2.934
+        },
+        "github.com/ethereum/go-ethereum/core/state": {
+          "action": "pass",
+          "elapsed": 11.935
+        },
+        "github.com/ethereum/go-ethereum/internal/ethapi": {
+          "action": "pass",
+          "elapsed": 3.643
+        },
+        "github.com/ethereum/go-ethereum/miner": {
+          "action": "pass",
+          "elapsed": 7.311
+        },
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool": {
+          "action": "pass",
+          "elapsed": 28.318
+        },
+        "github.com/ethereum/go-ethereum/core": {
+          "action": "pass",
+          "elapsed": 173.148
+        }
+      },
+      "passed_tests": 566,
+      "failed": [],
+      "json_sha256": "189a1de896183be59187195ff956da631d51a5211287f3220f7189c67da5a385",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "targeted-final": {
+      "packages": {
+        "github.com/ethereum/go-ethereum/common/pendingtrace": {
+          "action": "pass",
+          "elapsed": 0.015
+        },
+        "github.com/ethereum/go-ethereum/core": {
+          "action": "pass",
+          "elapsed": 3.073
+        },
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool": {
+          "action": "pass",
+          "elapsed": 7.391
+        }
+      },
+      "passed_tests": 51,
+      "failed": [],
+      "json_sha256": "6c246e942c08e090f0c28553c526e29342b70d81796ba0b84b8d9650597410dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "race-final": {
+      "packages": {
+        "github.com/ethereum/go-ethereum/common/pendingtrace": {
+          "action": "pass",
+          "elapsed": 1.027
+        },
+        "github.com/ethereum/go-ethereum/core/txpool/legacypool": {
+          "action": "pass",
+          "elapsed": 1.866
+        },
+        "github.com/ethereum/go-ethereum/core": {
+          "action": "pass",
+          "elapsed": 17.571
+        }
+      },
+      "passed_tests": 117,
+      "failed": [],
+      "json_sha256": "fdc434e4900b249bfedb19668b30d910898591715af0d47c2938b23d1b746fb9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_files": {
+    "common/pendingtrace/preload.go": {
+      "sha256": "ae8c061a81336e62c68c617dd6848f610b56d916d5f43deb71f37da15172d1f2",
+      "git_blob": "fdfdf0a768c897c4d30242d6873ff47dc69a7f0c"
+    },
+    "common/pendingtrace/trace.go": {
+      "sha256": "2274bbd9f76fc46725772c67c6f4bd86c67afa6088760ede90e4e600ad918129",
+      "git_blob": "e97786922d95bbb287b251645b0a03ddc6527e1b"
+    },
+    "core/blockchain_reader.go": {
+      "sha256": "be0f4d1670c2ab6e4c030f4f8241d5aafadf5b85f2b8dbe1a99f970a7d16e92a",
+      "git_blob": "f143538990cea04811a9f8b80c7725c98c951166"
+    },
+    "core/txpool/legacypool/legacypool.go": {
+      "sha256": "e0b068ebc689b915c52c92f036527850bbd2f65473b08a0d5dcb4ab9373aa2f3",
+      "git_blob": "581ea78d3b551cce380c93ddfa15777c4aa11979"
+    },
+    "core/txpool/legacypool/preload.go": {
+      "sha256": "c1ea87396a057257a059fa17234330849bf5783cc434c6df69c3d5ba7749c7d8",
+      "git_blob": "cf57507bd84208562e4be898e65625135f0199ee"
+    },
+    "core/txpool/legacypool/preload_benchmark_test.go": {
+      "sha256": "c87c836a2a648fdfdf4d2d891fa10d580f7cf9754c3db606dd7166b61e197ed8",
+      "git_blob": "01170b270f57fe9072b1cf43579326c05d8da7b7"
+    },
+    "core/txpool/legacypool/preload_test.go": {
+      "sha256": "92765443e7a77f8827f4bdd86e33597712a8db09db92fed89d360f0b63e5ef4b",
+      "git_blob": "a859cc785891a327ce86f7e9d1f50da2bfa1a90d"
+    },
+    "core/blockchain_pool_state_test.go": {
+      "sha256": "4481dd3d97ec60b2749743ba73c6c239ade3c238d53d27d903d073b16e8edba3",
+      "git_blob": "be6380fe87bf7875c77c3d8b1b454615a4a652fd"
+    }
+  },
+  "benchmarks": {
+    "BenchmarkResetPreload/37275-4": {
+      "pairs": 10,
+      "metrics": {
+        "ns/op": {
+          "baseline_median": 241823274.5,
+          "patch_median": 247798559.0,
+          "paired_mean_percent": 2.2051764223517853,
+          "paired_95ci_percent": [
+            0.7976553987321078,
+            3.725958721351251
+          ]
+        },
+        "hold-ns/op": {
+          "baseline_median": 241724900.0,
+          "patch_median": 115765200.0,
+          "paired_mean_percent": -52.54814973305796,
+          "paired_95ci_percent": [
+            -53.65639701626826,
+            -51.48716119339884
+          ]
+        },
+        "cpu-ns/op": {
+          "baseline_median": 296000000.0,
+          "patch_median": 310000000.0,
+          "paired_mean_percent": 5.916838746169931,
+          "paired_95ci_percent": [
+            0.9820898843418016,
+            11.112173365838709
+          ]
+        },
+        "B/op": {
+          "baseline_median": 37795324.5,
+          "patch_median": 38566712.5,
+          "paired_mean_percent": 2.0416256731612026,
+          "paired_95ci_percent": [
+            2.040595597817052,
+            2.042768817966857
+          ]
+        },
+        "allocs/op": {
+          "baseline_median": 531545.0,
+          "patch_median": 531558.5,
+          "paired_mean_percent": 0.002558581784328773,
+          "paired_95ci_percent": [
+            0.002332823518760241,
+            0.002803154833170618
+          ]
+        },
+        "gc/op": {
+          "baseline_median": 0.6,
+          "patch_median": 0.6,
+          "paired_mean_percent": 4.999999999999995,
+          "paired_95ci_percent": [
+            -15.0,
+            25.04166666666605
+          ]
+        },
+        "gc-pause-ns/op": {
+          "baseline_median": 121550.0,
+          "patch_median": 121730.0,
+          "paired_mean_percent": 14.987875832460883,
+          "paired_95ci_percent": [
+            -19.710159078491852,
+            56.82387933431554
+          ]
+        },
+        "demote-ns/op": {
+          "baseline_median": 154190100.0,
+          "patch_median": 25694200.0,
+          "paired_mean_percent": -83.2116067381735,
+          "paired_95ci_percent": [
+            -83.61766832191724,
+            -82.73085899581903
+          ]
+        }
+      },
+      "rounds": {
+        "baseline": {
+          "n": 50,
+          "total_p50_ms": 243.0539565,
+          "total_p95_ms": 263.29479225,
+          "hold_p50_ms": 242.961,
+          "hold_p95_ms": 263.1957
+        },
+        "patch": {
+          "n": 50,
+          "total_p50_ms": 245.9682985,
+          "total_p95_ms": 268.15699845,
+          "hold_p50_ms": 111.3625,
+          "hold_p95_ms": 131.95775
+        }
+      },
+      "point_budget_pass": false,
+      "ci_upper_budget_pass": false
+    },
+    "BenchmarkResetPreload/80000-4": {
+      "pairs": 10,
+      "metrics": {
+        "ns/op": {
+          "baseline_median": 562707835.5,
+          "patch_median": 571151585.5,
+          "paired_mean_percent": 1.8054420332187326,
+          "paired_95ci_percent": [
+            0.7967784832053804,
+            2.7209616150817495
+          ]
+        },
+        "hold-ns/op": {
+          "baseline_median": 562610100.0,
+          "patch_median": 279336800.0,
+          "paired_mean_percent": -50.176391957957875,
+          "paired_95ci_percent": [
+            -50.73081944748177,
+            -49.609346535501196
+          ]
+        },
+        "cpu-ns/op": {
+          "baseline_median": 707000000.0,
+          "patch_median": 731000000.0,
+          "paired_mean_percent": 0.7066488086773048,
+          "paired_95ci_percent": [
+            -3.097135370416624,
+            4.074604675201054
+          ]
+        },
+        "B/op": {
+          "baseline_median": 78283007.0,
+          "patch_median": 79906220.5,
+          "paired_mean_percent": 2.0732999228526205,
+          "paired_95ci_percent": [
+            2.0727742205030713,
+            2.07374782473909
+          ]
+        },
+        "allocs/op": {
+          "baseline_median": 1112991.0,
+          "patch_median": 1113003.0,
+          "paired_mean_percent": 0.001087160794379649,
+          "paired_95ci_percent": [
+            0.0009970874221321704,
+            0.001177009014878605
+          ]
+        },
+        "gc/op": {
+          "baseline_median": 0.6,
+          "patch_median": 0.6,
+          "paired_mean_percent": -16.666666666666664,
+          "paired_95ci_percent": [
+            -30.0,
+            -3.333333333333333
+          ]
+        },
+        "gc-pause-ns/op": {
+          "baseline_median": 146800.0,
+          "patch_median": 130480.0,
+          "paired_mean_percent": -3.9502992956291596,
+          "paired_95ci_percent": [
+            -21.064129031122935,
+            12.287080771000195
+          ]
+        },
+        "demote-ns/op": {
+          "baseline_median": 347648800.0,
+          "patch_median": 61375000.0,
+          "paired_mean_percent": -82.3120991885368,
+          "paired_95ci_percent": [
+            -82.5394056452802,
+            -82.09477383603833
+          ]
+        }
+      },
+      "rounds": {
+        "baseline": {
+          "n": 50,
+          "total_p50_ms": 562.716109,
+          "total_p95_ms": 617.9830749,
+          "hold_p50_ms": 562.6195,
+          "hold_p95_ms": 617.85675
+        },
+        "patch": {
+          "n": 50,
+          "total_p50_ms": 568.618694,
+          "total_p95_ms": 616.0153531,
+          "hold_p50_ms": 273.4715,
+          "hold_p95_ms": 317.88465
+        }
+      },
+      "point_budget_pass": true,
+      "ci_upper_budget_pass": true
+    },
+    "BenchmarkResetPreloadTrie/37275-4": {
+      "pairs": 10,
+      "metrics": {
+        "ns/op": {
+          "baseline_median": 356048516.5,
+          "patch_median": 348553998.5,
+          "paired_mean_percent": -1.760169403990387,
+          "paired_95ci_percent": [
+            -4.373415319507196,
+            0.3715879750526586
+          ]
+        },
+        "hold-ns/op": {
+          "baseline_median": 355951900.0,
+          "patch_median": 109744500.0,
+          "paired_mean_percent": -68.4686104358234,
+          "paired_95ci_percent": [
+            -69.42960361270896,
+            -67.5531524766019
+          ]
+        },
+        "cpu-ns/op": {
+          "baseline_median": 449000000.0,
+          "patch_median": 464000000.0,
+          "paired_mean_percent": 2.950783926278958,
+          "paired_95ci_percent": [
+            0.13988675229762934,
+            6.217701687352339
+          ]
+        },
+        "B/op": {
+          "baseline_median": 74668984.5,
+          "patch_median": 75440305.5,
+          "paired_mean_percent": 1.0279425145540078,
+          "paired_95ci_percent": [
+            1.0172696858046217,
+            1.0388266114481537
+          ]
+        },
+        "allocs/op": {
+          "baseline_median": 941224.0,
+          "patch_median": 941239.5,
+          "paired_mean_percent": 0.0015511711240123738,
+          "paired_95ci_percent": [
+            0.0014449264885180169,
+            0.001657416786422894
+          ]
+        },
+        "gc/op": {
+          "baseline_median": 0.6,
+          "patch_median": 0.6,
+          "paired_mean_percent": -9.166666666666666,
+          "paired_95ci_percent": [
+            -18.333333333333332,
+            0.0
+          ]
+        },
+        "gc-pause-ns/op": {
+          "baseline_median": 149480.0,
+          "patch_median": 129710.0,
+          "paired_mean_percent": -9.586108745986909,
+          "paired_95ci_percent": [
+            -31.5270256457627,
+            12.852450626935557
+          ]
+        },
+        "demote-ns/op": {
+          "baseline_median": 262173000.0,
+          "patch_median": 26254600.0,
+          "paired_mean_percent": -89.93083825108654,
+          "paired_95ci_percent": [
+            -90.25463182916573,
+            -89.57841071494116
+          ]
+        }
+      },
+      "rounds": {
+        "baseline": {
+          "n": 50,
+          "total_p50_ms": 351.6304485,
+          "total_p95_ms": 391.62432035,
+          "hold_p50_ms": 351.5395,
+          "hold_p95_ms": 391.51275
+        },
+        "patch": {
+          "n": 50,
+          "total_p50_ms": 347.9358,
+          "total_p95_ms": 385.38872480000003,
+          "hold_p50_ms": 109.6875,
+          "hold_p95_ms": 127.14605
+        }
+      },
+      "point_budget_pass": true,
+      "ci_upper_budget_pass": false
+    },
+    "BenchmarkResetPreloadTrie/80000-4": {
+      "pairs": 10,
+      "metrics": {
+        "ns/op": {
+          "baseline_median": 855912692.5,
+          "patch_median": 839745409.5,
+          "paired_mean_percent": -1.6484034718438756,
+          "paired_95ci_percent": [
+            -2.7814901479744365,
+            -0.5138257190458151
+          ]
+        },
+        "hold-ns/op": {
+          "baseline_median": 855811700.0,
+          "patch_median": 273464400.0,
+          "paired_mean_percent": -67.90899738819535,
+          "paired_95ci_percent": [
+            -68.1726067238766,
+            -67.6618242657001
+          ]
+        },
+        "cpu-ns/op": {
+          "baseline_median": 1126000000.0,
+          "patch_median": 1131000000.0,
+          "paired_mean_percent": 0.4935552039322988,
+          "paired_95ci_percent": [
+            -0.6382912259261372,
+            1.623704937253557
+          ]
+        },
+        "B/op": {
+          "baseline_median": 158618462.0,
+          "patch_median": 160163574.0,
+          "paired_mean_percent": 0.9776325917592832,
+          "paired_95ci_percent": [
+            0.8987975532301473,
+            1.0602240974938004
+          ]
+        },
+        "allocs/op": {
+          "baseline_median": 1997237.0,
+          "patch_median": 1997248.5,
+          "paired_mean_percent": 0.000590817872186955,
+          "paired_95ci_percent": [
+            0.00029540853887038976,
+            0.0009112623584896506
+          ]
+        },
+        "gc/op": {
+          "baseline_median": 0.8,
+          "patch_median": 0.6,
+          "paired_mean_percent": -26.50000000000001,
+          "paired_95ci_percent": [
+            -29.500000000000007,
+            -25.00000000000001
+          ]
+        },
+        "gc-pause-ns/op": {
+          "baseline_median": 206560.0,
+          "patch_median": 132350.0,
+          "paired_mean_percent": -30.228002994862038,
+          "paired_95ci_percent": [
+            -42.927867375178586,
+            -16.32540339893181
+          ]
+        },
+        "demote-ns/op": {
+          "baseline_median": 635610200.0,
+          "patch_median": 62021400.0,
+          "paired_mean_percent": -90.20916235570537,
+          "paired_95ci_percent": [
+            -90.3319688337944,
+            -90.08484038412496
+          ]
+        }
+      },
+      "rounds": {
+        "baseline": {
+          "n": 50,
+          "total_p50_ms": 841.326137,
+          "total_p95_ms": 953.4413461999999,
+          "hold_p50_ms": 841.2335,
+          "hold_p95_ms": 953.337
+        },
+        "patch": {
+          "n": 50,
+          "total_p50_ms": 834.6055425,
+          "total_p95_ms": 915.1459736,
+          "hold_p50_ms": 271.186,
+          "hold_p95_ms": 299.9398
+        }
+      },
+      "point_budget_pass": true,
+      "ci_upper_budget_pass": true
+    }
+  },
+  "sampled_preload": {
+    "38107": {
+      "n": 3,
+      "all_checks_passed": true,
+      "median": {
+        "snapshot_wait_us": 1,
+        "snapshot_hold_us": 848,
+        "state_open_us": 13,
+        "noncer_us": 4,
+        "read_us": 141983,
+        "account_reads_us": 75543,
+        "run_to_install_us": 142886,
+        "run_to_unlock_us": 260981,
+        "run_to_complete_us": 261004,
+        "write_wait_us": 0,
+        "write_hold_us": 122550
+      },
+      "example": {
+        "sequence": 12,
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "stage": "state_preload",
+        "unix_us": 1792910863254357,
+        "monotonic_us": 664749,
+        "operation": 1,
+        "source": "head_reset",
+        "outcome": "adopted",
+        "parent": "0x8e050706258d5ffc3b1c13f877d184da4f868bb9b8c2f7881206d0ecb266d3ba",
+        "scope": "preload",
+        "duration_us": 268479,
+        "pool": 2,
+        "preload": {
+          "version": 1,
+          "rebuild": 32,
+          "sample_every": 32,
+          "root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "snapshot_wait_us": 1,
+          "snapshot_hold_us": 1382,
+          "state_open_us": 13,
+          "noncer_us": 4,
+          "read_us": 144483,
+          "read_errors": 0,
+          "accounts": 38107,
+          "loaded": 38107,
+          "account_reads_us": 75543,
+          "tail_loads": 0,
+          "run_to_install_us": 145910,
+          "run_to_unlock_us": 268438,
+          "run_to_complete_us": 268479,
+          "write_wait_us": 0,
+          "write_hold_us": 122550
+        }
+      }
+    },
+    "80832": {
+      "n": 3,
+      "all_checks_passed": true,
+      "median": {
+        "snapshot_wait_us": 1,
+        "snapshot_hold_us": 2593,
+        "state_open_us": 23,
+        "noncer_us": 8,
+        "read_us": 293833,
+        "account_reads_us": 154113,
+        "run_to_install_us": 296488,
+        "run_to_unlock_us": 596699,
+        "run_to_complete_us": 596726,
+        "write_wait_us": 0,
+        "write_hold_us": 305202
+      },
+      "example": {
+        "sequence": 48,
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "stage": "state_preload",
+        "unix_us": 1792910865480435,
+        "monotonic_us": 2890827,
+        "operation": 10,
+        "source": "head_reset",
+        "outcome": "adopted",
+        "parent": "0x8e050706258d5ffc3b1c13f877d184da4f868bb9b8c2f7881206d0ecb266d3ba",
+        "scope": "preload",
+        "duration_us": 629459,
+        "pool": 11,
+        "preload": {
+          "version": 1,
+          "rebuild": 32,
+          "sample_every": 32,
+          "root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "snapshot_wait_us": 1,
+          "snapshot_hold_us": 2696,
+          "state_open_us": 13,
+          "noncer_us": 11,
+          "read_us": 321502,
+          "read_errors": 0,
+          "accounts": 80832,
+          "loaded": 80832,
+          "account_reads_us": 158002,
+          "tail_loads": 0,
+          "run_to_install_us": 324264,
+          "run_to_unlock_us": 629429,
+          "run_to_complete_us": 629459,
+          "write_wait_us": 0,
+          "write_hold_us": 305202
+        }
+      }
+    }
+  },
+  "acceptance": {
+    "all_point_budgets_pass": false,
+    "all_ci_upper_budgets_pass": false,
+    "decision": "NOT_RELEASE_READY_CPU_BUDGET",
+    "failed_metric": "hot-RLP/37275 process CPU paired mean +5.917%, 95% CI +0.982% to +11.112%",
+    "production_rollout": "not requested; local lock reduction does not establish live pending-expiry improvement"
+  },
+  "geth_build": {
+    "sha256": "36cc1d42058a44e156fb0b9ec19e72ea4734d88c92d8bc2fe3f7e78e5fbdbc59",
+    "release_artifact": false,
+    "build_vcs": false,
+    "flags": "-p 4 -mod=readonly -tags urfave_cli_no_docs,ckzg -trimpath -buildvcs=false"
+  },
+  "evidence_directory": "D:/workSpace/.codex-build/node-state-preload-20261025",
+  "evidence_manifest_sha256": "2e488ed8c57f4fbe0c4587571b758b96a4ed8f0ae82f8ef71d9bc3f9bc121007",
+  "limitations": [
+    "synthetic account/transaction contents at observed account/tx scale",
+    "hot RLP and real trie in memory database are not production state or physical cold-disk IO",
+    "process CPU ticks include concurrent GC and have 10ms quantization",
+    "completion benchmark measures actual Reset request through scheduler to done; sequential callers do not reproduce production burst queueing",
+    "preload telemetry run-to-completion excludes scheduler queueing; do not confuse that boundary with the Reset benchmark",
+    "ordinary five-round paired series does not hit systematic round-32 diagnostics; forced sampled rounds are recorded separately",
+    "50 measured rounds per shape and version; calibration rounds excluded from percentiles",
+    "5 percent predeclared budgets; confidence intervals are paired bootstrap across 10 independent process pairs",
+    "non-child/coalesced heads and invalidated preparations use original locked fallback; their hold reduction is not established by ordinary-child benchmarks"
+  ]
+}

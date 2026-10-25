@@ -1,9 +1,48 @@
 # Txpool state preload outside the write lock
 
-Status: local implementation and validation, 2026-10-25. Not deployed. No
+Status: local implementation and validation, 2026-10-25. **Not release ready:
+the hot-RLP 37,275-account case exceeds the predeclared 5% CPU budget.** Not deployed. No
 configuration, startup arguments or production process changes are part of this
 work. Results and evidence hashes are in
 [the validation report](txpool-state-preload-validation-20261025.json).
+
+The runtime implementation is `e1ab04e`; `21b6340` adds caller-visible Reset
+benchmarking without changing runtime code. Seven package suites, three repeats
+of the focused race suite, targeted checks and a local geth build passed.
+
+Ten final alternating pairs, five measured rounds per shape/version, gave:
+
+| Reader / pending accounts | Write hold p50/p95 ms, before -> after | Reset completion p50 ms | Allocation bytes | Process CPU |
+| --- | --- | --- | --- | --- |
+| Hot RLP / 37,275 | 243/263 -> 111/132 | 243 -> 246 | +2.04% | **+5.92%** |
+| Hot RLP / 80,000 | 563/618 -> 273/318 | 563 -> 569 | +2.07% | +0.71% |
+| Real trie / 37,275 | 352/392 -> 110/127 | 352 -> 348 | +1.03% | +2.95% |
+| Real trie / 80,000 | 841/953 -> 271/300 | 841 -> 835 | +0.98% | +0.49% |
+
+Percent changes use the mean of paired run ratios, whereas displayed latency
+percentiles use all 50 final measured rounds. They need not equal a ratio of the
+displayed medians. The failed CPU case has a paired bootstrap 95% interval of
++0.98% to +11.11%; this dataset does not establish compliance with the budget.
+Total latency changed by -1.76% to +2.21% across the four paired cases. This is
+a verified reduction of exclusive lock occupancy, not a demonstrated overall
+CPU/latency improvement or a measured live pending-expiry improvement.
+
+Three forced sampled rounds per size showed snapshot read-lock medians of
+0.848/2.593 ms at 38,107/80,832 total addresses, empty noncer-copy medians of
+4/8 us and warming medians of 141.983/293.833 ms. All six aggregates had the
+expected account/load counts, no warm read errors and zero tail reader attempts
+in these closed fixtures. Head/root/operation correlation also passed its
+dedicated test. Real concurrent new addresses can produce tail reads.
+These first-touch sampled rounds also include existing reheap diagnostics; they
+do not isolate the incremental observer overhead. The ordinary five-round paired
+series does not reach systematic round 32.
+
+The complete earlier map-snapshot prototype is retained under the evidence
+directory's `map-prototype/`, with its binary hashes and raw measurements. It used
+direct `runReorg` completion; the final series includes the actual Reset
+scheduler. It is not substituted for the final CPU result. Investigate the
+remaining CPU overhead before considering production rollout; production keeps
+the previous implementation throughout this task.
 
 ## Ownership and adoption
 

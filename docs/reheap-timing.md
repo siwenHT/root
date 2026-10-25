@@ -1,5 +1,8 @@
 # Sampled price-heap rebuild diagnostics
 
+The locally validated StateDB preparation change and its release status are
+documented in [txpool state preload](txpool-state-preload.md).
+
 These diagnostics add no configuration or RPC endpoint and do not change heap
 policy, comparison results, the 4:1 heap ratio or rebuild frequency.
 
