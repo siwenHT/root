@@ -111,3 +111,31 @@ tip comparisons used the zero fast branch; the floating comparisons used nil
 base fee. Counts vary with lookup iteration order. Its injected mutex wait and
 phase durations are test data, not production measurements. No production
 configuration, process or binary was changed during this validation.
+
+## Production observation, 2026-10-25
+
+Commit `870cc83` was fetched from main, tested and built on the server, then
+started as PID `122797` with unchanged configuration. ELF SHA-256 is
+`05b8a9f6ef3156cb8277f3cfb578455c64059515fc1d43ff3bdde6c3aa33f804`; `geth.prev` retains the preceding ELF.
+
+The formal window is 2026-10-25T04:01:43.086344+00:00 to 2026-10-25T04:06:43.086344+00:00 (300 seconds), after the
+declared 180-second peer/pool stability gate. There are 666 head
+rebuilds and 21 expected/observed complete sampled rounds.
+
+| Input transactions | Samples | Comparisons p50 | Zero fast rate | Rebuild p50 / p95 ms |
+| --- | ---: | ---: | ---: | ---: |
+| 38000-38999 | 21 | 295,832 | 100.00% | 39.124 / 51.770 |
+
+Stage p50 times (ms) are: lookup 2.804, urgent_init 18.596, urgent_pop_split 16.646, floating_init 0.749.
+The sampled head/operation/lock joins, stage counters and ring counter
+accounting close; cursor loss is zero. Cumulative ring overwrite is retained
+separately from reader loss. Per-round results, size bins, canonical head checks,
+recovery details and artifact hashes are in the
+[machine-readable release and observation record](reheap-production-20261025.json).
+
+Urgent initialization and pop/split together account for 91.01% of summed
+sampled rebuild wall time. Sampled `runReorg` hold p50 is
+177.640 ms; demote p50 is 120.356 ms and pending-nonce rebuild
+p50 is 12.881 ms. Reheap mutex waits are below the 1-us resolution
+in all 21 samples. These are current-window decompositions, not a controlled
+before/after performance result. The window only covers the 38k size bin.

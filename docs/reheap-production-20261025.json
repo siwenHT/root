@@ -1,0 +1,2847 @@
+{
+  "recorded_utc": "2026-10-25T04:09:17.241026+00:00",
+  "source_commit": "870cc83debe3c0aa8e810bad038c00b050015afb",
+  "branch_at_build": "main",
+  "server_build_clean": true,
+  "production_elf_sha256": "05b8a9f6ef3156cb8277f3cfb578455c64059515fc1d43ff3bdde6c3aa33f804",
+  "previous_elf_sha256": "2925fc512125d97704c3603a7d6d6150e19df3cdefb0913ad83a0db46b33f031",
+  "old_pid": 118427,
+  "new_pid": 122797,
+  "restart": {
+    "signal_utc": "2026-10-25T03:34:27.470534+00:00",
+    "shutdown_seconds": 2.5013367626816034,
+    "launched_utc": "2026-10-25T03:34:30.020049+00:00",
+    "ready_utc": "2026-10-25T03:36:08.149229+00:00",
+    "startup_seconds": 98.1291649993509,
+    "rollback_used": false
+  },
+  "acceptance_utc": "2026-10-25T03:43:49.408355+00:00",
+  "configuration_unchanged": true,
+  "startup_arguments_and_tuning_unchanged": true,
+  "configuration_sha256": {
+    "/home/bsc/fullnode/config.toml": "8f7635e0a4306200f53a9fb1db208a7fb38dd64e52009f831dafc922cc1b1bc0",
+    "/home/bsc/fullnode/z_run.sh": "6e1d21a15c03537f2132a8a1d08a6c4862b870b7378749c50d6a4ba77a00ba23",
+    "/home/bsc/codex_stage/arb-live/runtime.env": "7911ed6567a13ead7dc0f0d880dbd30ecee83de8c1b78448f2fb5cbcc76070d0",
+    "/home/bsc/codex_stage/arb-live/pools.json": "68354cfcf7fce18b5c216c502473419a83f3be3a2af25547b9e4d04c3d32d581"
+  },
+  "database_counts_before": {
+    "signed": 105610,
+    "events": 2487131
+  },
+  "database_counts_final": {
+    "signed": 105639,
+    "events": 2487233
+  },
+  "wal_before": {
+    "signed.wal": {
+      "bytes": 53262918,
+      "mtime": 1792899039.5872884
+    },
+    "outbox.wal": {
+      "bytes": 99794849,
+      "mtime": 1792899125.8042428
+    },
+    "telegram-success.wal": {
+      "bytes": 612603,
+      "mtime": 1792885523.3577065
+    }
+  },
+  "wal_final": {
+    "signed.wal": {
+      "bytes": 53700703,
+      "mtime": 1792901305.401361
+    },
+    "outbox.wal": {
+      "bytes": 125129089,
+      "mtime": 1792901355.0703425
+    },
+    "telegram-success.wal": {
+      "bytes": 612603,
+      "mtime": 1792885523.3577065
+    }
+  },
+  "controlled_old_project_processes": [],
+  "client_process_changes": {
+    "observed_changes": {
+      "rust5": {
+        "before_pid": 1963760,
+        "after_pid": 144754,
+        "before_start_ticks": "1368516458",
+        "after_start_ticks": "1371253005"
+      }
+    },
+    "commands_sent_to_old_client_processes": [],
+    "note": "Observed PID changes are retained. The release script signals only the verified geth PID; client connections are checked by the acceptance script."
+  },
+  "recovery_pause_evidence": {
+    "producer_state_lines": [
+      "2026-10-25T03:34:27Z engine engine: node observation interrupted; producer paused (node capabilities unavailable)",
+      "2026-10-25T03:34:59Z engine engine: node observation interrupted; producer paused (node syncing)",
+      "2026-10-25T03:36:27Z engine engine: node observation interrupted; producer paused (node syncing)",
+      "2026-10-25T03:36:44Z engine engine: node observation interrupted; producer paused (node syncing)",
+      "2026-10-25T03:38:48Z engine engine: node observation interrupted; producer paused (node syncing)",
+      "2026-10-25T03:40:31Z engine engine: node observation interrupted; producer paused (node syncing)",
+      "2026-10-25T03:40:45Z engine engine: node observation interrupted; producer paused (node syncing)"
+    ]
+  },
+  "server_tests": {
+    "packages": [
+      "github.com/ethereum/go-ethereum/common/pendingtrace",
+      "github.com/ethereum/go-ethereum/core/types",
+      "github.com/ethereum/go-ethereum/core/txpool",
+      "github.com/ethereum/go-ethereum/internal/ethapi",
+      "github.com/ethereum/go-ethereum/miner",
+      "github.com/ethereum/go-ethereum/core/txpool/legacypool"
+    ],
+    "pass_events": 289,
+    "failed": false,
+    "sha256": "8df27503049810b0a12081156dcb11dc21b95cf71320ecef8ebfefaef7e3d124"
+  },
+  "stability": {
+    "passed_utc": "2026-10-25T04:01:19.597490+00:00",
+    "rule": {
+      "sample_seconds": 15,
+      "window_seconds": 180,
+      "minimum_samples": 13,
+      "peer_minimum": 140,
+      "peer_range_maximum": 8,
+      "pool_total_minimum": 36000,
+      "pool_range_fraction_maximum": 0.02,
+      "pool_endpoint_fraction_maximum": 0.01,
+      "head_age_seconds_maximum": 3,
+      "status_age_seconds_maximum": 65
+    },
+    "actual_span_seconds": 180.126644,
+    "checks": {
+      "span": true,
+      "peer_minimum": true,
+      "peer_range": true,
+      "pool_minimum": true,
+      "pool_range": true,
+      "pool_endpoint": true,
+      "healthy": true
+    }
+  },
+  "observation": {
+    "created_utc": "2026-10-25T04:07:59.454012+00:00",
+    "window": {
+      "start_unix_us": 1792900903086344,
+      "end_unix_us": 1792901203086344,
+      "seconds": 300.0,
+      "boot_id": "122797-18e1a8630c4218d8"
+    },
+    "capture": {
+      "pages": 5497,
+      "events": 3973126,
+      "cursor_lost_sum": 0,
+      "pages_with_loss": 0,
+      "sequence_errors": [],
+      "counter_errors": [],
+      "checkpoint": {
+        "latest_sequence": 11551292,
+        "next_sequence": 11551292,
+        "oldest_sequence": 11485757,
+        "reheap_recorded": 104,
+        "reheap_overwritten": 103,
+        "overwritten": 11485756
+      },
+      "last_page": {
+        "latest_sequence": 15458456,
+        "next_sequence": 15458456,
+        "oldest_sequence": 15392921,
+        "reheap_recorded": 128,
+        "reheap_overwritten": 127,
+        "overwritten": 15392920
+      },
+      "reheap_recorded_delta": 24,
+      "reheap_recorded_seen": 24,
+      "reheap_overwritten_delta": 24,
+      "reheap_overwritten_seen": 24,
+      "reheap_retained_seen": 1,
+      "node_rpc_errors": 0,
+      "rust_parse_errors": 0,
+      "rust_audit_dropped_max": 0,
+      "rust_stage_gap_flags": 0,
+      "identities_unchanged": true,
+      "configuration_hashes_unchanged": true
+    },
+    "head_rebuilds": 666,
+    "expected_sampled_rounds": 21,
+    "actual_sampled_rounds": 21,
+    "denominator_offsets": {
+      "6": 3317
+    },
+    "all_head_priced_phase_us": {
+      "n": 666,
+      "min": 29164,
+      "p50": 40964.0,
+      "p95": 55809,
+      "max": 72645,
+      "mean": 41910.2027027027,
+      "sum": 27912195
+    },
+    "aggregate": {
+      "samples": 21,
+      "transactions": {
+        "n": 21,
+        "min": 38178,
+        "p50": 38389,
+        "p95": 38560,
+        "max": 38577,
+        "mean": 38394.619047619046,
+        "sum": 806287
+      },
+      "comparisons": {
+        "n": 21,
+        "min": 293995,
+        "p50": 295832,
+        "p95": 297227,
+        "max": 297442,
+        "mean": 295894.90476190473,
+        "sum": 6213793
+      },
+      "comparisons_per_transaction": {
+        "n": 21,
+        "min": 7.700639111530201,
+        "p50": 7.706902396411901,
+        "p95": 7.710345542680872,
+        "max": 7.712589506574664,
+        "mean": 7.70667098237093,
+        "sum": 161.84009062978953
+      },
+      "zero_fast": 6052567,
+      "zero_guard_fallback": 0,
+      "zero_fast_hit_rate": 1.0,
+      "timing_us": {
+        "mutex_wait_us": {
+          "n": 21,
+          "min": 0,
+          "p50": 0,
+          "p95": 0,
+          "max": 0,
+          "mean": 0,
+          "sum": 0
+        },
+        "lookup_us": {
+          "n": 21,
+          "min": 2504,
+          "p50": 2804,
+          "p95": 3294,
+          "max": 3574,
+          "mean": 2852,
+          "sum": 59892
+        },
+        "total_us": {
+          "n": 21,
+          "min": 30886,
+          "p50": 39124,
+          "p95": 51770,
+          "max": 65771,
+          "mean": 41213.76190476191,
+          "sum": 865489
+        }
+      },
+      "sampled_hold_us": {
+        "n": 21,
+        "min": 163276,
+        "p50": 177640,
+        "p95": 199505,
+        "max": 205762,
+        "mean": 180874.7619047619,
+        "sum": 3798370
+      },
+      "sampled_priced_phase_us": {
+        "n": 21,
+        "min": 30952,
+        "p50": 39187,
+        "p95": 51832,
+        "max": 65835,
+        "mean": 41278.80952380953,
+        "sum": 866855
+      },
+      "sample_setup_and_phase_residual_us": {
+        "n": 21,
+        "min": 52,
+        "p50": 63,
+        "p95": 85,
+        "max": 85,
+        "mean": 64.85714285714286,
+        "sum": 1362
+      },
+      "stages": {
+        "urgent_init": {
+          "duration_us": {
+            "n": 21,
+            "min": 14659,
+            "p50": 18596,
+            "p95": 27455,
+            "max": 29588,
+            "mean": 19738.85714285714,
+            "sum": 414516
+          },
+          "comparisons": {
+            "n": 21,
+            "min": 71767,
+            "p50": 72267,
+            "p95": 72466,
+            "max": 72568,
+            "mean": 72216.57142857143,
+            "sum": 1516548
+          },
+          "counts": {
+            "comparisons": 1516548,
+            "nil_base_fee": 0,
+            "zero_fast": 1516548,
+            "zero_guard_fallback": 0,
+            "nonzero_base_fee": 0,
+            "effective_tip_equal": 92151,
+            "fee_cap_equal": 90809,
+            "tip_cap_equal": 90809,
+            "nonce_compared": 90809,
+            "nonce_equal": 6054
+          },
+          "zero_fast_hit_rate": 1.0,
+          "type_pairs": [
+            [
+              1057388,
+              14664,
+              155897,
+              0,
+              278,
+              0
+            ],
+            [
+              29813,
+              1108,
+              6063,
+              0,
+              2,
+              0
+            ],
+            [
+              209971,
+              4516,
+              36584,
+              0,
+              68,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              181,
+              0,
+              15,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "urgent_pop_split": {
+          "duration_us": {
+            "n": 21,
+            "min": 13108,
+            "p50": 16646,
+            "p95": 24935,
+            "max": 33527,
+            "mean": 17768.190476190477,
+            "sum": 373132
+          },
+          "comparisons": {
+            "n": 21,
+            "min": 214594,
+            "p50": 215906,
+            "p95": 217055,
+            "max": 217160,
+            "mean": 216000.90476190476,
+            "sum": 4536019
+          },
+          "counts": {
+            "comparisons": 4536019,
+            "nil_base_fee": 0,
+            "zero_fast": 4536019,
+            "zero_guard_fallback": 0,
+            "nonzero_base_fee": 0,
+            "effective_tip_equal": 1004778,
+            "fee_cap_equal": 990769,
+            "tip_cap_equal": 990769,
+            "nonce_compared": 990769,
+            "nonce_equal": 371813
+          },
+          "zero_fast_hit_rate": 1.0,
+          "type_pairs": [
+            [
+              3418621,
+              35235,
+              342647,
+              0,
+              1016,
+              0
+            ],
+            [
+              92890,
+              19140,
+              13772,
+              0,
+              34,
+              0
+            ],
+            [
+              474045,
+              10038,
+              127703,
+              0,
+              187,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              568,
+              10,
+              113,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        "floating_init": {
+          "duration_us": {
+            "n": 21,
+            "min": 400,
+            "p50": 749,
+            "p95": 1526,
+            "max": 1862,
+            "mean": 852.6666666666666,
+            "sum": 17906
+          },
+          "comparisons": {
+            "n": 21,
+            "min": 7634,
+            "p50": 7676,
+            "p95": 7711,
+            "max": 7714,
+            "mean": 7677.428571428572,
+            "sum": 161226
+          },
+          "counts": {
+            "comparisons": 161226,
+            "nil_base_fee": 161226,
+            "zero_fast": 0,
+            "zero_guard_fallback": 0,
+            "nonzero_base_fee": 0,
+            "effective_tip_equal": 0,
+            "fee_cap_equal": 93242,
+            "tip_cap_equal": 93242,
+            "nonce_compared": 93242,
+            "nonce_equal": 57020
+          },
+          "zero_fast_hit_rate": null,
+          "type_pairs": [
+            [
+              105408,
+              3350,
+              21706,
+              0,
+              0,
+              0
+            ],
+            [
+              2858,
+              1983,
+              1334,
+              0,
+              0,
+              0
+            ],
+            [
+              12281,
+              1259,
+              11014,
+              0,
+              12,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              12,
+              0,
+              9,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        }
+      }
+    },
+    "by_1000_transactions": {
+      "38000-38999": {
+        "samples": 21,
+        "transactions": {
+          "n": 21,
+          "min": 38178,
+          "p50": 38389,
+          "p95": 38560,
+          "max": 38577,
+          "mean": 38394.619047619046,
+          "sum": 806287
+        },
+        "comparisons": {
+          "n": 21,
+          "min": 293995,
+          "p50": 295832,
+          "p95": 297227,
+          "max": 297442,
+          "mean": 295894.90476190473,
+          "sum": 6213793
+        },
+        "comparisons_per_transaction": {
+          "n": 21,
+          "min": 7.700639111530201,
+          "p50": 7.706902396411901,
+          "p95": 7.710345542680872,
+          "max": 7.712589506574664,
+          "mean": 7.70667098237093,
+          "sum": 161.84009062978953
+        },
+        "zero_fast": 6052567,
+        "zero_guard_fallback": 0,
+        "zero_fast_hit_rate": 1.0,
+        "timing_us": {
+          "mutex_wait_us": {
+            "n": 21,
+            "min": 0,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "mean": 0,
+            "sum": 0
+          },
+          "lookup_us": {
+            "n": 21,
+            "min": 2504,
+            "p50": 2804,
+            "p95": 3294,
+            "max": 3574,
+            "mean": 2852,
+            "sum": 59892
+          },
+          "total_us": {
+            "n": 21,
+            "min": 30886,
+            "p50": 39124,
+            "p95": 51770,
+            "max": 65771,
+            "mean": 41213.76190476191,
+            "sum": 865489
+          }
+        },
+        "sampled_hold_us": {
+          "n": 21,
+          "min": 163276,
+          "p50": 177640,
+          "p95": 199505,
+          "max": 205762,
+          "mean": 180874.7619047619,
+          "sum": 3798370
+        },
+        "sampled_priced_phase_us": {
+          "n": 21,
+          "min": 30952,
+          "p50": 39187,
+          "p95": 51832,
+          "max": 65835,
+          "mean": 41278.80952380953,
+          "sum": 866855
+        },
+        "sample_setup_and_phase_residual_us": {
+          "n": 21,
+          "min": 52,
+          "p50": 63,
+          "p95": 85,
+          "max": 85,
+          "mean": 64.85714285714286,
+          "sum": 1362
+        },
+        "stages": {
+          "urgent_init": {
+            "duration_us": {
+              "n": 21,
+              "min": 14659,
+              "p50": 18596,
+              "p95": 27455,
+              "max": 29588,
+              "mean": 19738.85714285714,
+              "sum": 414516
+            },
+            "comparisons": {
+              "n": 21,
+              "min": 71767,
+              "p50": 72267,
+              "p95": 72466,
+              "max": 72568,
+              "mean": 72216.57142857143,
+              "sum": 1516548
+            },
+            "counts": {
+              "comparisons": 1516548,
+              "nil_base_fee": 0,
+              "zero_fast": 1516548,
+              "zero_guard_fallback": 0,
+              "nonzero_base_fee": 0,
+              "effective_tip_equal": 92151,
+              "fee_cap_equal": 90809,
+              "tip_cap_equal": 90809,
+              "nonce_compared": 90809,
+              "nonce_equal": 6054
+            },
+            "zero_fast_hit_rate": 1.0,
+            "type_pairs": [
+              [
+                1057388,
+                14664,
+                155897,
+                0,
+                278,
+                0
+              ],
+              [
+                29813,
+                1108,
+                6063,
+                0,
+                2,
+                0
+              ],
+              [
+                209971,
+                4516,
+                36584,
+                0,
+                68,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                181,
+                0,
+                15,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            ]
+          },
+          "urgent_pop_split": {
+            "duration_us": {
+              "n": 21,
+              "min": 13108,
+              "p50": 16646,
+              "p95": 24935,
+              "max": 33527,
+              "mean": 17768.190476190477,
+              "sum": 373132
+            },
+            "comparisons": {
+              "n": 21,
+              "min": 214594,
+              "p50": 215906,
+              "p95": 217055,
+              "max": 217160,
+              "mean": 216000.90476190476,
+              "sum": 4536019
+            },
+            "counts": {
+              "comparisons": 4536019,
+              "nil_base_fee": 0,
+              "zero_fast": 4536019,
+              "zero_guard_fallback": 0,
+              "nonzero_base_fee": 0,
+              "effective_tip_equal": 1004778,
+              "fee_cap_equal": 990769,
+              "tip_cap_equal": 990769,
+              "nonce_compared": 990769,
+              "nonce_equal": 371813
+            },
+            "zero_fast_hit_rate": 1.0,
+            "type_pairs": [
+              [
+                3418621,
+                35235,
+                342647,
+                0,
+                1016,
+                0
+              ],
+              [
+                92890,
+                19140,
+                13772,
+                0,
+                34,
+                0
+              ],
+              [
+                474045,
+                10038,
+                127703,
+                0,
+                187,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                568,
+                10,
+                113,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            ]
+          },
+          "floating_init": {
+            "duration_us": {
+              "n": 21,
+              "min": 400,
+              "p50": 749,
+              "p95": 1526,
+              "max": 1862,
+              "mean": 852.6666666666666,
+              "sum": 17906
+            },
+            "comparisons": {
+              "n": 21,
+              "min": 7634,
+              "p50": 7676,
+              "p95": 7711,
+              "max": 7714,
+              "mean": 7677.428571428572,
+              "sum": 161226
+            },
+            "counts": {
+              "comparisons": 161226,
+              "nil_base_fee": 161226,
+              "zero_fast": 0,
+              "zero_guard_fallback": 0,
+              "nonzero_base_fee": 0,
+              "effective_tip_equal": 0,
+              "fee_cap_equal": 93242,
+              "tip_cap_equal": 93242,
+              "nonce_compared": 93242,
+              "nonce_equal": 57020
+            },
+            "zero_fast_hit_rate": null,
+            "type_pairs": [
+              [
+                105408,
+                3350,
+                21706,
+                0,
+                0,
+                0
+              ],
+              [
+                2858,
+                1983,
+                1334,
+                0,
+                0,
+                0
+              ],
+              [
+                12281,
+                1259,
+                11014,
+                0,
+                12,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                12,
+                0,
+                9,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "association": {
+      "sampled_window_count": 21,
+      "matched_runReorg_hold": 21,
+      "matched_priced_phase": 21,
+      "canonical_heads": 21,
+      "post_unlock_record_order_valid": true,
+      "nested_time_intervals_valid": true,
+      "stage_branch_type_counters_close": true,
+      "boundary_notes": []
+    },
+    "health": {
+      "samples": 20,
+      "errors": [],
+      "peers": {
+        "n": 20,
+        "min": 149,
+        "p50": 150.0,
+        "p95": 150,
+        "max": 150,
+        "mean": 149.75,
+        "sum": 2995
+      },
+      "pool": {
+        "n": 20,
+        "min": 38211,
+        "p50": 38401.0,
+        "p95": 38571,
+        "max": 38573,
+        "mean": 38401.85,
+        "sum": 768037
+      },
+      "head_age_seconds": {
+        "n": 20,
+        "min": 0.2977919578552246,
+        "p50": 1.1492613554000854,
+        "p95": 1.2909941673278809,
+        "max": 1.2986478805541992,
+        "mean": 1.0202124118804932,
+        "sum": 20.404248237609863
+      },
+      "status_records": 10,
+      "all_connected_unpaused": true,
+      "all_syncing_false": true
+    },
+    "node_stage_counts_full_capture": {
+      "rlpx_frame_ready": 268123,
+      "rlpx_decode_done": 268123,
+      "p2p_handoff_begin": 267883,
+      "p2p_handoff_end": 267883,
+      "eth_handler_begin": 240176,
+      "packet_hash": 73830,
+      "hash_received": 66729,
+      "fetch_announce": 66729,
+      "eth_handler_end": 240174,
+      "p2p_read_gap": 268129,
+      "p2p_previous_dispatch": 268129,
+      "p2p_read": 268130,
+      "rlpx_io_window": 187801,
+      "p2p_handoff_previous_handler": 161656,
+      "p2p_dispatch": 161897,
+      "fetch_notify_handoff": 94366,
+      "pool_lock_wait": 167813,
+      "pool_lock_hold": 167813,
+      "pool_phase": 182116,
+      "rlpx_prefetch_wait": 80682,
+      "pool_add_call": 22005,
+      "fetch_admission": 22022,
+      "fetch_cleanup_handoff": 26589,
+      "fetch_request_queued": 6641,
+      "fetch_request_begin": 6641,
+      "fetch_request_end": 6641,
+      "fetch_wait_end": 2324,
+      "body_received": 7101,
+      "body_decoded": 7101,
+      "pool_add_begin": 7101,
+      "legacy_add_begin": 7089,
+      "legacy_lock_wait": 4331,
+      "legacy_lock_acquired": 4331,
+      "legacy_lock_released": 4331,
+      "legacy_promote_begin": 4331,
+      "legacy_promote_scheduled": 4331,
+      "legacy_add_end": 7087,
+      "pool_add_end": 7099,
+      "fetch_wait_begin": 4755,
+      "tracker_first_seen": 1293,
+      "feed_emit_begin": 1271,
+      "feed_emit_end": 1271,
+      "feed_received": 2566,
+      "subscriber_send_begin": 2566,
+      "subscriber_send_end": 2566,
+      "subscriber_batch_dequeued": 2566,
+      "simulation_batch_dequeued": 2566,
+      "simulation_scheduled": 2566,
+      "simulation_started": 2566,
+      "simulation_state_ready": 2566,
+      "simulation_finished": 2566,
+      "simulation_result_dequeued": 2566,
+      "payload_build_begin": 2246,
+      "notify_begin": 2246,
+      "notify_lock_acquired": 2246,
+      "codec_write_begin": 2246,
+      "codec_write_end": 2246,
+      "notify_return": 2246,
+      "priced_reheap": 25,
+      "fetch_rejection_backoff": 97
+    },
+    "node_stage_counts_in_window_by_end": {
+      "p2p_read": 223823,
+      "rlpx_io_window": 157590,
+      "rlpx_frame_ready": 223816,
+      "rlpx_decode_done": 223816,
+      "p2p_handoff_begin": 223613,
+      "p2p_handoff_end": 223592,
+      "p2p_handoff_previous_handler": 134850,
+      "p2p_dispatch": 135054,
+      "eth_handler_begin": 200277,
+      "eth_handler_end": 200255,
+      "p2p_read_gap": 223827,
+      "p2p_previous_dispatch": 223827,
+      "packet_hash": 61815,
+      "hash_received": 55924,
+      "fetch_announce": 55924,
+      "pool_lock_wait": 139033,
+      "pool_lock_hold": 139032,
+      "pool_phase": 150863,
+      "body_received": 5891,
+      "body_decoded": 5891,
+      "pool_add_begin": 5891,
+      "legacy_add_begin": 5882,
+      "legacy_add_end": 5882,
+      "pool_add_end": 5891,
+      "pool_add_call": 18103,
+      "fetch_admission": 18119,
+      "fetch_cleanup_handoff": 22012,
+      "fetch_notify_handoff": 78848,
+      "fetch_wait_end": 1980,
+      "fetch_wait_begin": 3972,
+      "rlpx_prefetch_wait": 66537,
+      "fetch_request_queued": 5832,
+      "fetch_request_begin": 5832,
+      "fetch_request_end": 5832,
+      "legacy_lock_wait": 3593,
+      "legacy_lock_acquired": 3593,
+      "legacy_lock_released": 3593,
+      "legacy_promote_begin": 3593,
+      "legacy_promote_scheduled": 3593,
+      "tracker_first_seen": 1078,
+      "feed_emit_begin": 1062,
+      "feed_emit_end": 1062,
+      "feed_received": 2142,
+      "subscriber_send_begin": 2142,
+      "subscriber_send_end": 2142,
+      "subscriber_batch_dequeued": 2142,
+      "simulation_batch_dequeued": 2142,
+      "simulation_scheduled": 2142,
+      "simulation_started": 2142,
+      "simulation_state_ready": 2142,
+      "simulation_finished": 2142,
+      "simulation_result_dequeued": 2142,
+      "payload_build_begin": 1872,
+      "notify_begin": 1872,
+      "notify_lock_acquired": 1872,
+      "codec_write_begin": 1872,
+      "codec_write_end": 1872,
+      "notify_return": 1872,
+      "fetch_rejection_backoff": 95,
+      "priced_reheap": 21
+    },
+    "limits": [
+      "Only every 32nd head-reset rebuild contains exact comparison counters. Other rebuilds retain phase duration only; stale-triggered rebuilds are outside this denominator.",
+      "Size bins use exact input counts from sampled rounds, not interpolated health snapshots. Sparse bins and one five-minute window cannot establish a scaling law.",
+      "Durations are wall time and sampled rounds incur measured observer overhead. They are not CPU time per comparison.",
+      "Zero fast rate excludes nil-base-fee floating comparisons. Cumulative overwrite is ring retention, not capture loss.",
+      "lookup_us includes initial allocation/stale reset, lookup traversal and type counting; phase residual includes sample setup and the surrounding base-fee/rebuild call."
+    ]
+  },
+  "per_round": [
+    {
+      "sequence": 11717328,
+      "pool": 6,
+      "operation": 13501262,
+      "parent_operation": 13499893,
+      "head_hash": "0x78cb8d52be51b8e1d46a0015ce54d1fd4f43d29a66162361dcca8522b12132a4",
+      "begin_unix_us": 1792900912325432,
+      "reheap_end_unix_us": 1792900912359603,
+      "hold_us": 179884,
+      "phase_us": 34171,
+      "comparisons": 293995,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3360,
+      "head": 129638224,
+      "transactions": 38178,
+      "pending": 37169,
+      "queued": 1009,
+      "type_counts": [
+        33428,
+        330,
+        4411,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2648,
+      "total_us": 34113,
+      "stages": [
+        {
+          "duration_us": 15803,
+          "comparisons": 71767,
+          "zero_fast": 71767,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4372,
+          "fee_cap_equal": 4315,
+          "tip_cap_equal": 4315,
+          "nonce_compared": 4315,
+          "nonce_equal": 290
+        },
+        {
+          "duration_us": 14661,
+          "comparisons": 214594,
+          "zero_fast": 214594,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47254,
+          "fee_cap_equal": 46558,
+          "tip_cap_equal": 46558,
+          "nonce_compared": 46558,
+          "nonce_equal": 17474
+        },
+        {
+          "duration_us": 1000,
+          "comparisons": 7634,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7634,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4393,
+          "tip_cap_equal": 4393,
+          "nonce_compared": 4393,
+          "nonce_equal": 2673
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 32,
+        "state_open": 7,
+        "demote": 120356,
+        "priced_reheap": 34171,
+        "pending_nonce_rebuild": 18275,
+        "promote": 3774,
+        "truncate_pending": 3224,
+        "truncate_queue": 49
+      }
+    },
+    {
+      "sequence": 11888565,
+      "pool": 6,
+      "operation": 13680834,
+      "parent_operation": 13679493,
+      "head_hash": "0x3a6e014819ce4c040ddbb3b45b483a6c5654b2f8a9117728051144cb381b4dd5",
+      "begin_unix_us": 1792900926746818,
+      "reheap_end_unix_us": 1792900926780998,
+      "hold_us": 163577,
+      "phase_us": 34181,
+      "comparisons": 294483,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3392,
+      "head": 129638256,
+      "transactions": 38226,
+      "pending": 37217,
+      "queued": 1009,
+      "type_counts": [
+        33466,
+        330,
+        4421,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2723,
+      "total_us": 34119,
+      "stages": [
+        {
+          "duration_us": 16023,
+          "comparisons": 71895,
+          "zero_fast": 71895,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4358,
+          "fee_cap_equal": 4294,
+          "tip_cap_equal": 4294,
+          "nonce_compared": 4294,
+          "nonce_equal": 284
+        },
+        {
+          "duration_us": 14422,
+          "comparisons": 214944,
+          "zero_fast": 214944,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47320,
+          "fee_cap_equal": 46696,
+          "tip_cap_equal": 46696,
+          "nonce_compared": 46696,
+          "nonce_equal": 17639
+        },
+        {
+          "duration_us": 949,
+          "comparisons": 7644,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7644,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4401,
+          "tip_cap_equal": 4401,
+          "nonce_compared": 4401,
+          "nonce_equal": 2698
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 34,
+        "state_open": 6,
+        "demote": 109660,
+        "priced_reheap": 34181,
+        "pending_nonce_rebuild": 13086,
+        "promote": 3918,
+        "truncate_pending": 2640,
+        "truncate_queue": 55
+      }
+    },
+    {
+      "sequence": 12024320,
+      "pool": 6,
+      "operation": 13835924,
+      "parent_operation": 13834307,
+      "head_hash": "0x1558b9304f52aef2609c36924b5bca4ba873a65c21756a8635456025e47b6a9f",
+      "begin_unix_us": 1792900941150031,
+      "reheap_end_unix_us": 1792900941191110,
+      "hold_us": 173701,
+      "phase_us": 41080,
+      "comparisons": 294723,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3424,
+      "head": 129638288,
+      "transactions": 38245,
+      "pending": 37236,
+      "queued": 1009,
+      "type_counts": [
+        33484,
+        330,
+        4422,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2741,
+      "total_us": 41017,
+      "stages": [
+        {
+          "duration_us": 20843,
+          "comparisons": 72030,
+          "zero_fast": 72030,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4318,
+          "fee_cap_equal": 4249,
+          "tip_cap_equal": 4249,
+          "nonce_compared": 4249,
+          "nonce_equal": 291
+        },
+        {
+          "duration_us": 16907,
+          "comparisons": 215045,
+          "zero_fast": 215045,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47343,
+          "fee_cap_equal": 46668,
+          "tip_cap_equal": 46668,
+          "nonce_compared": 46668,
+          "nonce_equal": 17300
+        },
+        {
+          "duration_us": 523,
+          "comparisons": 7648,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7648,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4415,
+          "tip_cap_equal": 4415,
+          "nonce_compared": 4415,
+          "nonce_equal": 2684
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 40,
+        "state_open": 8,
+        "demote": 114847,
+        "priced_reheap": 41080,
+        "pending_nonce_rebuild": 11561,
+        "promote": 3442,
+        "truncate_pending": 2678,
+        "truncate_queue": 48
+      }
+    },
+    {
+      "sequence": 12170252,
+      "pool": 6,
+      "operation": 13995198,
+      "parent_operation": 13993859,
+      "head_hash": "0x6d246312b138505bf68aecfc6cce7a868a244c429735370f9171811a83199ac0",
+      "begin_unix_us": 1792900955551199,
+      "reheap_end_unix_us": 1792900955603030,
+      "hold_us": 193789,
+      "phase_us": 51832,
+      "comparisons": 294684,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3456,
+      "head": 129638320,
+      "transactions": 38263,
+      "pending": 37254,
+      "queued": 1009,
+      "type_counts": [
+        33501,
+        330,
+        4423,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2968,
+      "total_us": 51770,
+      "stages": [
+        {
+          "duration_us": 29588,
+          "comparisons": 71932,
+          "zero_fast": 71932,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4317,
+          "fee_cap_equal": 4253,
+          "tip_cap_equal": 4253,
+          "nonce_compared": 4253,
+          "nonce_equal": 285
+        },
+        {
+          "duration_us": 18770,
+          "comparisons": 215101,
+          "zero_fast": 215101,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47241,
+          "fee_cap_equal": 46611,
+          "tip_cap_equal": 46611,
+          "nonce_compared": 46611,
+          "nonce_equal": 17333
+        },
+        {
+          "duration_us": 442,
+          "comparisons": 7651,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7651,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4416,
+          "tip_cap_equal": 4416,
+          "nonce_compared": 4416,
+          "nonce_equal": 2693
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 26,
+        "state_open": 3,
+        "demote": 124342,
+        "priced_reheap": 51832,
+        "pending_nonce_rebuild": 10879,
+        "promote": 4201,
+        "truncate_pending": 2458,
+        "truncate_queue": 47
+      }
+    },
+    {
+      "sequence": 12315217,
+      "pool": 6,
+      "operation": 14147605,
+      "parent_operation": 14146482,
+      "head_hash": "0xbb79f6428af21a4f8fea29f991f67bbb8cd5726f645c811391454a3868d51084",
+      "begin_unix_us": 1792900969913056,
+      "reheap_end_unix_us": 1792900969959463,
+      "hold_us": 180211,
+      "phase_us": 46407,
+      "comparisons": 295062,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3488,
+      "head": 129638352,
+      "transactions": 38277,
+      "pending": 37268,
+      "queued": 1009,
+      "type_counts": [
+        33513,
+        330,
+        4425,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2990,
+      "total_us": 46346,
+      "stages": [
+        {
+          "duration_us": 22293,
+          "comparisons": 72118,
+          "zero_fast": 72118,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4326,
+          "fee_cap_equal": 4256,
+          "tip_cap_equal": 4256,
+          "nonce_compared": 4256,
+          "nonce_equal": 270
+        },
+        {
+          "duration_us": 19535,
+          "comparisons": 215290,
+          "zero_fast": 215290,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47825,
+          "fee_cap_equal": 47116,
+          "tip_cap_equal": 47116,
+          "nonce_compared": 47116,
+          "nonce_equal": 17687
+        },
+        {
+          "duration_us": 1525,
+          "comparisons": 7654,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7654,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4419,
+          "tip_cap_equal": 4419,
+          "nonce_compared": 4419,
+          "nonce_equal": 2724
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 43,
+        "state_open": 8,
+        "demote": 111449,
+        "priced_reheap": 46407,
+        "pending_nonce_rebuild": 14898,
+        "promote": 3813,
+        "truncate_pending": 3523,
+        "truncate_queue": 73
+      }
+    },
+    {
+      "sequence": 12484342,
+      "pool": 6,
+      "operation": 14313785,
+      "parent_operation": 14312382,
+      "head_hash": "0x96eba3071726f17e379251252a7cee1430f9f5d677ba483e894f503a1f3a1e68",
+      "begin_unix_us": 1792900984364734,
+      "reheap_end_unix_us": 1792900984413547,
+      "hold_us": 190215,
+      "phase_us": 48814,
+      "comparisons": 294884,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3520,
+      "head": 129638384,
+      "transactions": 38288,
+      "pending": 37279,
+      "queued": 1009,
+      "type_counts": [
+        33522,
+        330,
+        4427,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2652,
+      "total_us": 48750,
+      "stages": [
+        {
+          "duration_us": 25199,
+          "comparisons": 71908,
+          "zero_fast": 71908,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4387,
+          "fee_cap_equal": 4329,
+          "tip_cap_equal": 4329,
+          "nonce_compared": 4329,
+          "nonce_equal": 300
+        },
+        {
+          "duration_us": 20444,
+          "comparisons": 215320,
+          "zero_fast": 215320,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47742,
+          "fee_cap_equal": 47120,
+          "tip_cap_equal": 47120,
+          "nonce_compared": 47120,
+          "nonce_equal": 17576
+        },
+        {
+          "duration_us": 453,
+          "comparisons": 7656,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7656,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4417,
+          "tip_cap_equal": 4417,
+          "nonce_compared": 4417,
+          "nonce_equal": 2696
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 35,
+        "state_open": 5,
+        "demote": 121032,
+        "priced_reheap": 48814,
+        "pending_nonce_rebuild": 12881,
+        "promote": 4698,
+        "truncate_pending": 2705,
+        "truncate_queue": 48
+      }
+    },
+    {
+      "sequence": 12639354,
+      "pool": 6,
+      "operation": 14477590,
+      "parent_operation": 14476005,
+      "head_hash": "0x442fe5369b63dda6684d74e00b7da1c70fcc66d16289ee5d8c6b63dc8dada31d",
+      "begin_unix_us": 1792900999196088,
+      "reheap_end_unix_us": 1792900999241960,
+      "hold_us": 198138,
+      "phase_us": 45872,
+      "comparisons": 295552,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3552,
+      "head": 129638416,
+      "transactions": 38349,
+      "pending": 37340,
+      "queued": 1009,
+      "type_counts": [
+        33566,
+        330,
+        4444,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 3574,
+      "total_us": 45787,
+      "stages": [
+        {
+          "duration_us": 22350,
+          "comparisons": 72178,
+          "zero_fast": 72178,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4388,
+          "fee_cap_equal": 4325,
+          "tip_cap_equal": 4325,
+          "nonce_compared": 4325,
+          "nonce_equal": 293
+        },
+        {
+          "duration_us": 19108,
+          "comparisons": 215706,
+          "zero_fast": 215706,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47448,
+          "fee_cap_equal": 46762,
+          "tip_cap_equal": 46762,
+          "nonce_compared": 46762,
+          "nonce_equal": 17687
+        },
+        {
+          "duration_us": 752,
+          "comparisons": 7668,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7668,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4433,
+          "tip_cap_equal": 4433,
+          "nonce_compared": 4433,
+          "nonce_equal": 2698
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 37,
+        "state_open": 6,
+        "demote": 130859,
+        "priced_reheap": 45872,
+        "pending_nonce_rebuild": 14647,
+        "promote": 3573,
+        "truncate_pending": 3099,
+        "truncate_queue": 48
+      }
+    },
+    {
+      "sequence": 12787781,
+      "pool": 6,
+      "operation": 14633969,
+      "parent_operation": 14632808,
+      "head_hash": "0xbd9d9dbb9606c5a45b928c24394958bedb2620c5d606a5e559f18f5a79e9854c",
+      "begin_unix_us": 1792901013243759,
+      "reheap_end_unix_us": 1792901013274711,
+      "hold_us": 170998,
+      "phase_us": 30952,
+      "comparisons": 295508,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3584,
+      "head": 129638448,
+      "transactions": 38347,
+      "pending": 37338,
+      "queued": 1009,
+      "type_counts": [
+        33571,
+        330,
+        4437,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2687,
+      "total_us": 30886,
+      "stages": [
+        {
+          "duration_us": 14659,
+          "comparisons": 72044,
+          "zero_fast": 72044,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4361,
+          "fee_cap_equal": 4290,
+          "tip_cap_equal": 4290,
+          "nonce_compared": 4290,
+          "nonce_equal": 270
+        },
+        {
+          "duration_us": 13108,
+          "comparisons": 215796,
+          "zero_fast": 215796,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48024,
+          "fee_cap_equal": 47437,
+          "tip_cap_equal": 47437,
+          "nonce_compared": 47437,
+          "nonce_equal": 17629
+        },
+        {
+          "duration_us": 430,
+          "comparisons": 7668,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7668,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4430,
+          "tip_cap_equal": 4430,
+          "nonce_compared": 4430,
+          "nonce_equal": 2706
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 54,
+        "state_open": 5,
+        "demote": 121120,
+        "priced_reheap": 30952,
+        "pending_nonce_rebuild": 11687,
+        "promote": 4138,
+        "truncate_pending": 2996,
+        "truncate_queue": 48
+      }
+    },
+    {
+      "sequence": 12937779,
+      "pool": 6,
+      "operation": 14791466,
+      "parent_operation": 14790146,
+      "head_hash": "0xcec6a2e4051051b805e341400706496b8e7ccce6ff2c601c0ddc4cd589097f19",
+      "begin_unix_us": 1792901027660805,
+      "reheap_end_unix_us": 1792901027703339,
+      "hold_us": 188191,
+      "phase_us": 42534,
+      "comparisons": 295742,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3616,
+      "head": 129638480,
+      "transactions": 38359,
+      "pending": 37350,
+      "queued": 1009,
+      "type_counts": [
+        33586,
+        330,
+        4434,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2694,
+      "total_us": 42453,
+      "stages": [
+        {
+          "duration_us": 20314,
+          "comparisons": 72242,
+          "zero_fast": 72242,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4360,
+          "fee_cap_equal": 4295,
+          "tip_cap_equal": 4295,
+          "nonce_compared": 4295,
+          "nonce_equal": 271
+        },
+        {
+          "duration_us": 18174,
+          "comparisons": 215830,
+          "zero_fast": 215830,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47737,
+          "fee_cap_equal": 47021,
+          "tip_cap_equal": 47021,
+          "nonce_compared": 47021,
+          "nonce_equal": 17787
+        },
+        {
+          "duration_us": 1269,
+          "comparisons": 7670,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7670,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4427,
+          "tip_cap_equal": 4427,
+          "nonce_compared": 4427,
+          "nonce_equal": 2709
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 36,
+        "state_open": 5,
+        "demote": 123698,
+        "priced_reheap": 42534,
+        "pending_nonce_rebuild": 14286,
+        "promote": 4523,
+        "truncate_pending": 3058,
+        "truncate_queue": 50
+      }
+    },
+    {
+      "sequence": 13082917,
+      "pool": 6,
+      "operation": 14955106,
+      "parent_operation": 14954023,
+      "head_hash": "0xf8b8236907b376ebce756339c2977a8f060f9deb8e3b4797f96852ef5eb8cb28",
+      "begin_unix_us": 1792901041870809,
+      "reheap_end_unix_us": 1792901041906344,
+      "hold_us": 165588,
+      "phase_us": 35535,
+      "comparisons": 295646,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3648,
+      "head": 129638512,
+      "transactions": 38372,
+      "pending": 37363,
+      "queued": 1009,
+      "type_counts": [
+        33599,
+        330,
+        4434,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2658,
+      "total_us": 35480,
+      "stages": [
+        {
+          "duration_us": 16686,
+          "comparisons": 72067,
+          "zero_fast": 72067,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4382,
+          "fee_cap_equal": 4319,
+          "tip_cap_equal": 4319,
+          "nonce_compared": 4319,
+          "nonce_equal": 283
+        },
+        {
+          "duration_us": 15546,
+          "comparisons": 215906,
+          "zero_fast": 215906,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47861,
+          "fee_cap_equal": 47158,
+          "tip_cap_equal": 47158,
+          "nonce_compared": 47158,
+          "nonce_equal": 17724
+        },
+        {
+          "duration_us": 588,
+          "comparisons": 7673,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7673,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4429,
+          "tip_cap_equal": 4429,
+          "nonce_compared": 4429,
+          "nonce_equal": 2712
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 40,
+        "state_open": 9,
+        "demote": 111935,
+        "priced_reheap": 35535,
+        "pending_nonce_rebuild": 11338,
+        "promote": 3877,
+        "truncate_pending": 2805,
+        "truncate_queue": 53
+      }
+    },
+    {
+      "sequence": 13269534,
+      "pool": 6,
+      "operation": 15124252,
+      "parent_operation": 15122983,
+      "head_hash": "0xd3cb1c498f77e45abc9e567d146b9dc4ac93ba179b4881d5979f6e2b1c2ec231",
+      "begin_unix_us": 1792901056351484,
+      "reheap_end_unix_us": 1792901056390185,
+      "hold_us": 163276,
+      "phase_us": 38702,
+      "comparisons": 295832,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3680,
+      "head": 129638544,
+      "transactions": 38389,
+      "pending": 37380,
+      "queued": 1009,
+      "type_counts": [
+        33610,
+        330,
+        4440,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2622,
+      "total_us": 38636,
+      "stages": [
+        {
+          "duration_us": 20805,
+          "comparisons": 72270,
+          "zero_fast": 72270,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4337,
+          "fee_cap_equal": 4268,
+          "tip_cap_equal": 4268,
+          "nonce_compared": 4268,
+          "nonce_equal": 303
+        },
+        {
+          "duration_us": 14680,
+          "comparisons": 215886,
+          "zero_fast": 215886,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47890,
+          "fee_cap_equal": 47249,
+          "tip_cap_equal": 47249,
+          "nonce_compared": 47249,
+          "nonce_equal": 17687
+        },
+        {
+          "duration_us": 527,
+          "comparisons": 7676,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7676,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4438,
+          "tip_cap_equal": 4438,
+          "nonce_compared": 4438,
+          "nonce_equal": 2719
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 39,
+        "state_open": 6,
+        "demote": 106241,
+        "priced_reheap": 38702,
+        "pending_nonce_rebuild": 12391,
+        "promote": 3296,
+        "truncate_pending": 2554,
+        "truncate_queue": 49
+      }
+    },
+    {
+      "sequence": 13424551,
+      "pool": 6,
+      "operation": 15279433,
+      "parent_operation": 15278103,
+      "head_hash": "0xdb8784818b6dfe993f126ad69a0f0c72736b0c4283ce0d6cc4074e85b2b00e56",
+      "begin_unix_us": 1792901070721173,
+      "reheap_end_unix_us": 1792901070787008,
+      "hold_us": 205762,
+      "phase_us": 65835,
+      "comparisons": 296202,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3712,
+      "head": 129638576,
+      "transactions": 38405,
+      "pending": 37396,
+      "queued": 1009,
+      "type_counts": [
+        33626,
+        330,
+        4440,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2926,
+      "total_us": 65771,
+      "stages": [
+        {
+          "duration_us": 27455,
+          "comparisons": 72448,
+          "zero_fast": 72448,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4339,
+          "fee_cap_equal": 4276,
+          "tip_cap_equal": 4276,
+          "nonce_compared": 4276,
+          "nonce_equal": 269
+        },
+        {
+          "duration_us": 33527,
+          "comparisons": 216074,
+          "zero_fast": 216074,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47874,
+          "fee_cap_equal": 47187,
+          "tip_cap_equal": 47187,
+          "nonce_compared": 47187,
+          "nonce_equal": 17806
+        },
+        {
+          "duration_us": 1862,
+          "comparisons": 7680,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7680,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4444,
+          "tip_cap_equal": 4444,
+          "nonce_compared": 4444,
+          "nonce_equal": 2723
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 53,
+        "state_open": 14,
+        "demote": 112424,
+        "priced_reheap": 65835,
+        "pending_nonce_rebuild": 20398,
+        "promote": 3316,
+        "truncate_pending": 3681,
+        "truncate_queue": 52
+      }
+    },
+    {
+      "sequence": 13555570,
+      "pool": 6,
+      "operation": 15431711,
+      "parent_operation": 15430506,
+      "head_hash": "0x030628702533bc26b68a6621497ae40753f178fe141e23225a2b395f7e9cfd2f",
+      "begin_unix_us": 1792901085103176,
+      "reheap_end_unix_us": 1792901085145180,
+      "hold_us": 175214,
+      "phase_us": 42005,
+      "comparisons": 296147,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3744,
+      "head": 129638608,
+      "transactions": 38418,
+      "pending": 37409,
+      "queued": 1009,
+      "type_counts": [
+        33639,
+        330,
+        4440,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2836,
+      "total_us": 41945,
+      "stages": [
+        {
+          "duration_us": 18709,
+          "comparisons": 72343,
+          "zero_fast": 72343,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4374,
+          "fee_cap_equal": 4314,
+          "tip_cap_equal": 4314,
+          "nonce_compared": 4314,
+          "nonce_equal": 286
+        },
+        {
+          "duration_us": 19074,
+          "comparisons": 216122,
+          "zero_fast": 216122,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47633,
+          "fee_cap_equal": 47040,
+          "tip_cap_equal": 47040,
+          "nonce_compared": 47040,
+          "nonce_equal": 17607
+        },
+        {
+          "duration_us": 1323,
+          "comparisons": 7682,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7682,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4448,
+          "tip_cap_equal": 4448,
+          "nonce_compared": 4448,
+          "nonce_equal": 2718
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 33,
+        "state_open": 3,
+        "demote": 113119,
+        "priced_reheap": 42005,
+        "pending_nonce_rebuild": 13734,
+        "promote": 3224,
+        "truncate_pending": 3046,
+        "truncate_queue": 49
+      }
+    },
+    {
+      "sequence": 13705754,
+      "pool": 6,
+      "operation": 15588587,
+      "parent_operation": 15587340,
+      "head_hash": "0x23235284d75bc6b6e427ae32b477ec7d41e514e878456b7e21484edd9ac5d648",
+      "begin_unix_us": 1792901099535142,
+      "reheap_end_unix_us": 1792901099573122,
+      "hold_us": 174687,
+      "phase_us": 37981,
+      "comparisons": 296484,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3776,
+      "head": 129638640,
+      "transactions": 38472,
+      "pending": 37463,
+      "queued": 1009,
+      "type_counts": [
+        33652,
+        331,
+        4480,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2841,
+      "total_us": 37915,
+      "stages": [
+        {
+          "duration_us": 17495,
+          "comparisons": 72267,
+          "zero_fast": 72267,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4427,
+          "fee_cap_equal": 4356,
+          "tip_cap_equal": 4356,
+          "nonce_compared": 4356,
+          "nonce_equal": 275
+        },
+        {
+          "duration_us": 16646,
+          "comparisons": 216524,
+          "zero_fast": 216524,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47972,
+          "fee_cap_equal": 47252,
+          "tip_cap_equal": 47252,
+          "nonce_compared": 47252,
+          "nonce_equal": 17688
+        },
+        {
+          "duration_us": 931,
+          "comparisons": 7693,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7693,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4455,
+          "tip_cap_equal": 4455,
+          "nonce_compared": 4455,
+          "nonce_equal": 2745
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 28,
+        "state_open": 4,
+        "demote": 112487,
+        "priced_reheap": 37981,
+        "pending_nonce_rebuild": 17459,
+        "promote": 4102,
+        "truncate_pending": 2572,
+        "truncate_queue": 50
+      }
+    },
+    {
+      "sequence": 13880376,
+      "pool": 6,
+      "operation": 15762182,
+      "parent_operation": 15760915,
+      "head_hash": "0xd7ad322c839b3a88e85659158abd73af4ae4389f00f4a3b439d09ba53a5772d4",
+      "begin_unix_us": 1792901113922882,
+      "reheap_end_unix_us": 1792901113957799,
+      "hold_us": 175663,
+      "phase_us": 34917,
+      "comparisons": 296436,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3808,
+      "head": 129638672,
+      "transactions": 38458,
+      "pending": 37450,
+      "queued": 1008,
+      "type_counts": [
+        33671,
+        333,
+        4445,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2804,
+      "total_us": 34851,
+      "stages": [
+        {
+          "duration_us": 16789,
+          "comparisons": 72368,
+          "zero_fast": 72368,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4442,
+          "fee_cap_equal": 4379,
+          "tip_cap_equal": 4379,
+          "nonce_compared": 4379,
+          "nonce_equal": 282
+        },
+        {
+          "duration_us": 14769,
+          "comparisons": 216378,
+          "zero_fast": 216378,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 47915,
+          "fee_cap_equal": 47260,
+          "tip_cap_equal": 47260,
+          "nonce_compared": 47260,
+          "nonce_equal": 17916
+        },
+        {
+          "duration_us": 487,
+          "comparisons": 7690,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7690,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4452,
+          "tip_cap_equal": 4452,
+          "nonce_compared": 4452,
+          "nonce_equal": 2753
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 42,
+        "state_open": 11,
+        "demote": 122646,
+        "priced_reheap": 34917,
+        "pending_nonce_rebuild": 11238,
+        "promote": 4048,
+        "truncate_pending": 2717,
+        "truncate_queue": 51
+      }
+    },
+    {
+      "sequence": 14055781,
+      "pool": 6,
+      "operation": 15945102,
+      "parent_operation": 15943906,
+      "head_hash": "0x828124a0c435d6c37ff11f9a2c12d59b23e57cf8af8526cd8db5da146036300c",
+      "begin_unix_us": 1792901128296016,
+      "reheap_end_unix_us": 1792901128339790,
+      "hold_us": 186652,
+      "phase_us": 43775,
+      "comparisons": 296565,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3840,
+      "head": 129638704,
+      "transactions": 38484,
+      "pending": 37476,
+      "queued": 1008,
+      "type_counts": [
+        33694,
+        333,
+        4448,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 3294,
+      "total_us": 43712,
+      "stages": [
+        {
+          "duration_us": 18540,
+          "comparisons": 72387,
+          "zero_fast": 72387,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4482,
+          "fee_cap_equal": 4419,
+          "tip_cap_equal": 4419,
+          "nonce_compared": 4419,
+          "nonce_equal": 289
+        },
+        {
+          "duration_us": 20761,
+          "comparisons": 216483,
+          "zero_fast": 216483,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48114,
+          "fee_cap_equal": 47437,
+          "tip_cap_equal": 47437,
+          "nonce_compared": 47437,
+          "nonce_equal": 17705
+        },
+        {
+          "duration_us": 1115,
+          "comparisons": 7695,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7695,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4474,
+          "tip_cap_equal": 4474,
+          "nonce_compared": 4474,
+          "nonce_equal": 2749
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 49,
+        "state_open": 12,
+        "demote": 121439,
+        "priced_reheap": 43775,
+        "pending_nonce_rebuild": 13334,
+        "promote": 4765,
+        "truncate_pending": 3234,
+        "truncate_queue": 53
+      }
+    },
+    {
+      "sequence": 14227214,
+      "pool": 6,
+      "operation": 16121032,
+      "parent_operation": 16119642,
+      "head_hash": "0xf865525f896dcff72edaf60855ffe22b7a19de52ccfb293f08a09c98045639cd",
+      "begin_unix_us": 1792901142779260,
+      "reheap_end_unix_us": 1792901142814763,
+      "hold_us": 173439,
+      "phase_us": 35504,
+      "comparisons": 296956,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3872,
+      "head": 129638736,
+      "transactions": 38529,
+      "pending": 37521,
+      "queued": 1008,
+      "type_counts": [
+        33735,
+        333,
+        4452,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 3223,
+      "total_us": 35419,
+      "stages": [
+        {
+          "duration_us": 16670,
+          "comparisons": 72388,
+          "zero_fast": 72388,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4449,
+          "fee_cap_equal": 4391,
+          "tip_cap_equal": 4391,
+          "nonce_compared": 4391,
+          "nonce_equal": 304
+        },
+        {
+          "duration_us": 14776,
+          "comparisons": 216864,
+          "zero_fast": 216864,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48245,
+          "fee_cap_equal": 47580,
+          "tip_cap_equal": 47580,
+          "nonce_compared": 47580,
+          "nonce_equal": 17989
+        },
+        {
+          "duration_us": 749,
+          "comparisons": 7704,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7704,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4468,
+          "tip_cap_equal": 4468,
+          "nonce_compared": 4468,
+          "nonce_equal": 2730
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 34,
+        "state_open": 6,
+        "demote": 119238,
+        "priced_reheap": 35504,
+        "pending_nonce_rebuild": 12575,
+        "promote": 3305,
+        "truncate_pending": 2729,
+        "truncate_queue": 50
+      }
+    },
+    {
+      "sequence": 14384497,
+      "pool": 6,
+      "operation": 16288657,
+      "parent_operation": 16287410,
+      "head_hash": "0x8526f4439f4d3fcbfbef73cb36b4eccb654d8b54eb123f8e16c68870748adbee",
+      "begin_unix_us": 1792901157624620,
+      "reheap_end_unix_us": 1792901157658388,
+      "hold_us": 166055,
+      "phase_us": 33768,
+      "comparisons": 297016,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3904,
+      "head": 129638769,
+      "transactions": 38538,
+      "pending": 37530,
+      "queued": 1008,
+      "type_counts": [
+        33743,
+        335,
+        4451,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2504,
+      "total_us": 33715,
+      "stages": [
+        {
+          "duration_us": 17497,
+          "comparisons": 72421,
+          "zero_fast": 72421,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4441,
+          "fee_cap_equal": 4384,
+          "tip_cap_equal": 4384,
+          "nonce_compared": 4384,
+          "nonce_equal": 287
+        },
+        {
+          "duration_us": 13312,
+          "comparisons": 216889,
+          "zero_fast": 216889,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48115,
+          "fee_cap_equal": 47512,
+          "tip_cap_equal": 47512,
+          "nonce_compared": 47512,
+          "nonce_equal": 18065
+        },
+        {
+          "duration_us": 400,
+          "comparisons": 7706,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7706,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4469,
+          "tip_cap_equal": 4469,
+          "nonce_compared": 4469,
+          "nonce_equal": 2731
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 38,
+        "state_open": 7,
+        "demote": 115762,
+        "priced_reheap": 33768,
+        "pending_nonce_rebuild": 10283,
+        "promote": 3772,
+        "truncate_pending": 2392,
+        "truncate_queue": 36
+      }
+    },
+    {
+      "sequence": 14570121,
+      "pool": 6,
+      "operation": 16473185,
+      "parent_operation": 16471822,
+      "head_hash": "0x16b0c7c41882b096bb1b36fa5826128116a89735a9f7f78b14c77752a5e2f04f",
+      "begin_unix_us": 1792901172014756,
+      "reheap_end_unix_us": 1792901172050857,
+      "hold_us": 177640,
+      "phase_us": 36101,
+      "comparisons": 297227,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3936,
+      "head": 129638801,
+      "transactions": 38553,
+      "pending": 37545,
+      "queued": 1008,
+      "type_counts": [
+        33755,
+        333,
+        4456,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2901,
+      "total_us": 36037,
+      "stages": [
+        {
+          "duration_us": 17994,
+          "comparisons": 72466,
+          "zero_fast": 72466,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4394,
+          "fee_cap_equal": 4329,
+          "tip_cap_equal": 4329,
+          "nonce_compared": 4329,
+          "nonce_equal": 309
+        },
+        {
+          "duration_us": 14697,
+          "comparisons": 217052,
+          "zero_fast": 217052,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48322,
+          "fee_cap_equal": 47667,
+          "tip_cap_equal": 47667,
+          "nonce_compared": 47667,
+          "nonce_equal": 17830
+        },
+        {
+          "duration_us": 443,
+          "comparisons": 7709,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7709,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4470,
+          "tip_cap_equal": 4470,
+          "nonce_compared": 4470,
+          "nonce_equal": 2713
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 52,
+        "state_open": 16,
+        "demote": 123802,
+        "priced_reheap": 36101,
+        "pending_nonce_rebuild": 10886,
+        "promote": 4289,
+        "truncate_pending": 2460,
+        "truncate_queue": 46
+      }
+    },
+    {
+      "sequence": 14731903,
+      "pool": 6,
+      "operation": 16647018,
+      "parent_operation": 16645580,
+      "head_hash": "0xc276952e9662af1d2abec0289494e5b9c498b258f920dbd83194fc22a379d557",
+      "begin_unix_us": 1792901186382418,
+      "reheap_end_unix_us": 1792901186421605,
+      "hold_us": 199505,
+      "phase_us": 39187,
+      "comparisons": 297207,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 3968,
+      "head": 129638833,
+      "transactions": 38560,
+      "pending": 37552,
+      "queued": 1008,
+      "type_counts": [
+        33760,
+        333,
+        4458,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 3022,
+      "total_us": 39124,
+      "stages": [
+        {
+          "duration_us": 20208,
+          "comparisons": 72441,
+          "zero_fast": 72441,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4442,
+          "fee_cap_equal": 4386,
+          "tip_cap_equal": 4386,
+          "nonce_compared": 4386,
+          "nonce_equal": 283
+        },
+        {
+          "duration_us": 15280,
+          "comparisons": 217055,
+          "zero_fast": 217055,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48282,
+          "fee_cap_equal": 47576,
+          "tip_cap_equal": 47576,
+          "nonce_compared": 47576,
+          "nonce_equal": 17825
+        },
+        {
+          "duration_us": 612,
+          "comparisons": 7711,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7711,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4472,
+          "tip_cap_equal": 4472,
+          "nonce_compared": 4472,
+          "nonce_equal": 2721
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 47,
+        "state_open": 11,
+        "demote": 141606,
+        "priced_reheap": 39187,
+        "pending_nonce_rebuild": 11829,
+        "promote": 4168,
+        "truncate_pending": 2617,
+        "truncate_queue": 46
+      }
+    },
+    {
+      "sequence": 14902327,
+      "pool": 6,
+      "operation": 16822781,
+      "parent_operation": 16821180,
+      "head_hash": "0x0be0607dd69b4027fb6f32e289d851663d75975719d10b689f7cbbb7e3af48d3",
+      "begin_unix_us": 1792901200849755,
+      "reheap_end_unix_us": 1792901200897457,
+      "hold_us": 196185,
+      "phase_us": 47702,
+      "comparisons": 297442,
+      "zero_fast_hit_rate": 1.0,
+      "rebuild": 4000,
+      "head": 129638865,
+      "transactions": 38577,
+      "pending": 37569,
+      "queued": 1008,
+      "type_counts": [
+        33778,
+        333,
+        4457,
+        0,
+        9,
+        0
+      ],
+      "mutex_wait_us": 0,
+      "lookup_us": 2584,
+      "total_us": 47643,
+      "stages": [
+        {
+          "duration_us": 18596,
+          "comparisons": 72568,
+          "zero_fast": 72568,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 4455,
+          "fee_cap_equal": 4382,
+          "tip_cap_equal": 4382,
+          "nonce_compared": 4382,
+          "nonce_equal": 330
+        },
+        {
+          "duration_us": 24935,
+          "comparisons": 217160,
+          "zero_fast": 217160,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 0,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 48621,
+          "fee_cap_equal": 47862,
+          "tip_cap_equal": 47862,
+          "nonce_compared": 47862,
+          "nonce_equal": 17859
+        },
+        {
+          "duration_us": 1526,
+          "comparisons": 7714,
+          "zero_fast": 0,
+          "zero_guard_fallback": 0,
+          "nil_base_fee": 7714,
+          "nonzero_base_fee": 0,
+          "effective_tip_equal": 0,
+          "fee_cap_equal": 4472,
+          "tip_cap_equal": 4472,
+          "nonce_compared": 4472,
+          "nonce_equal": 2725
+        }
+      ],
+      "runReorg_phase_us": {
+        "reset": 41,
+        "state_open": 11,
+        "demote": 127327,
+        "priced_reheap": 47702,
+        "pending_nonce_rebuild": 14307,
+        "promote": 3773,
+        "truncate_pending": 2979,
+        "truncate_queue": 51
+      }
+    }
+  ],
+  "final_health_utc": "2026-10-25T04:09:14.643469+00:00",
+  "evidence": {
+    "server_directory": "/home/bsc/codex_stage/node-reheap-release-20261025",
+    "local_directory": "D:\\workSpace\\.codex-build\\node-reheap-release-20261025",
+    "capture_manifest": {
+      "node-pages.jsonl.gz": {
+        "bytes": 120675409,
+        "raw_bytes": 1786161071,
+        "sha256": "aba1e4bedd172c4ed22ddf882e3f9d6ad2aa9934e774e41176175da45151e723"
+      },
+      "rust-stages.jsonl.gz": {
+        "bytes": 4754573,
+        "raw_bytes": 38533281,
+        "sha256": "db5eacb34c4149b9fe8456cccb218821091b2beaa5dc5582d3632813d0fc261b"
+      },
+      "runtime-status.jsonl.gz": {
+        "bytes": 3204,
+        "raw_bytes": 30226,
+        "sha256": "cd60dc4b64a80d824937985128d532c50426e59d2453717b50aa348169987773"
+      },
+      "health.jsonl.gz": {
+        "bytes": 1387,
+        "raw_bytes": 7314,
+        "sha256": "b182ac50b05426ee6eb1681cc8cd7479b582d4fb36c06d5f3f81025ca8017fb7"
+      },
+      "log-alerts.jsonl.gz": {
+        "bytes": 20,
+        "raw_bytes": 0,
+        "sha256": "458c5a203299dd326aa747fee1bbc7709bfbd560507d1603459d9f7d9eb6be76"
+      },
+      "capture-meta.json": {
+        "bytes": 4387,
+        "sha256": "b9707e1a1b585a7b677831d8e13a5450f7b674ddd88a95ad984b0c2f2f129f07"
+      },
+      "before.json": {
+        "bytes": 1121,
+        "sha256": "242824e78d6d23de7dcd8f38cff57a24ef68648345404005212ea3a685f31647"
+      },
+      "after.json": {
+        "bytes": 1121,
+        "sha256": "c5fa284dd48024db398c9778b8293b243def3c7c383ecdc8bbcd525c0d4db9a8"
+      }
+    },
+    "derived_hashes": {
+      "reheap-analysis.json": "0874f2d6caa9349752a6460971fb40fabbca56d072db9c034198d5a4736467b6",
+      "reheap-rounds.json": "efb4797488d5146955a9f9fce58e1efffa0dee34da2de2445e6e7db202794865",
+      "reheap-canonical-heads.json": "ef2fe1ec765766967b2dfd234aa1b99453c8d5ce39f460252e1ae245d02c684e"
+    },
+    "analyzer_sha256": "9fed3ecf5cbda49518f9ab417419c8e398723db001189ea521d694ed2bcc06d9"
+  },
+  "interpretation": [
+    "Warm-up was retained separately. The formal window began only after the declared stability gate, then retained all five minutes.",
+    "rust5 changed its PID during node recovery; no old-project process was signaled or controlled. Current client reconnections were verified. The first local PID-invariance check stopped and was continued with the observed change retained.",
+    "Recovery had transient node-syncing/producer-paused observations. They are recorded as recovery evidence, not erased or counted as part of the later formal window.",
+    "The sampled comparator and timing have measured observer cost. Production phase times are wall durations, not pure CPU time or a controlled before/after performance comparison.",
+    "Within these sampled rounds, urgent initialization plus pop/split accounts for 91.01% of summed rebuild wall time. Demote is the larger runReorg phase. This is a current-window decomposition, not a controlled before/after claim."
+  ],
+  "sampled_runReorg_phases_us": {
+    "demote": {
+      "n": 21,
+      "min": 106241,
+      "p50": 120356,
+      "p95": 130859,
+      "max": 141606,
+      "sum": 2505389
+    },
+    "pending_nonce_rebuild": {
+      "n": 21,
+      "min": 10283,
+      "p50": 12881,
+      "p95": 18275,
+      "max": 20398,
+      "sum": 281972
+    },
+    "priced_reheap": {
+      "n": 21,
+      "min": 30952,
+      "p50": 39187,
+      "p95": 51832,
+      "max": 65835,
+      "sum": 866855
+    },
+    "promote": {
+      "n": 21,
+      "min": 3224,
+      "p50": 3877,
+      "p95": 4698,
+      "max": 4765,
+      "sum": 82015
+    },
+    "reset": {
+      "n": 21,
+      "min": 26,
+      "p50": 39,
+      "p95": 53,
+      "max": 54,
+      "sum": 833
+    },
+    "state_open": {
+      "n": 21,
+      "min": 3,
+      "p50": 7,
+      "p95": 14,
+      "max": 16,
+      "sum": 163
+    },
+    "truncate_pending": {
+      "n": 21,
+      "min": 2392,
+      "p50": 2729,
+      "p95": 3523,
+      "max": 3681,
+      "sum": 60167
+    },
+    "truncate_queue": {
+      "n": 21,
+      "min": 36,
+      "p50": 49,
+      "p95": 55,
+      "max": 73,
+      "sum": 1052
+    }
+  },
+  "urgent_init_and_pop_share_of_sampled_rebuild_wall_sum": 0.9100612486120563
+}
