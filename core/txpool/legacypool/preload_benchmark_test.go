@@ -31,7 +31,7 @@ func (r *preloadReader) Account(addr common.Address) (*types.StateAccount, error
 
 type preloadChain struct {
 	BlockChain
-	db state.Database
+	db     state.Database
 	reader state.Reader
 }
 
@@ -64,21 +64,31 @@ func benchmarkPreloadPool(b *testing.B, accounts int) *LegacyPool {
 	pool.pendingNonces = newNoncer(pool.currentState)
 	pool.gasTip.Store(uint256.NewInt(1))
 	for i := 0; i < accounts+832; i++ {
-		addr := common.BigToAddress(big.NewInt(int64(i+1)))
+		addr := common.BigToAddress(big.NewInt(int64(i + 1)))
 		r.accounts[crypto.Keccak256Hash(addr[:])] = types.SlimAccountRLP(types.StateAccount{
 			Balance: uint256.NewInt(1000000000000000000), Root: types.EmptyRootHash, CodeHash: types.EmptyCodeHash.Bytes()})
 		l := newList(i < accounts)
 		count, nonce := 1, uint64(0)
-		if i < 1170 { count = 2 } // 37,275 accounts / 38,445 pending txs.
-		if i >= accounts { count, nonce = 2, 2 }
-		if i >= accounts && i < accounts+309 { count = 3 }
+		if i < 1170 {
+			count = 2
+		} // 37,275 accounts / 38,445 pending txs.
+		if i >= accounts {
+			count, nonce = 2, 2
+		}
+		if i >= accounts && i < accounts+309 {
+			count = 3
+		}
 		for j := 0; j < count; j++ {
-			tx := types.NewTx(&types.LegacyTx{Nonce: nonce+uint64(j), To: &addr, Gas: 21000,
-				GasPrice: big.NewInt(int64(i+1))})
+			tx := types.NewTx(&types.LegacyTx{Nonce: nonce + uint64(j), To: &addr, Gas: 21000,
+				GasPrice: big.NewInt(int64(i + 1))})
 			l.Add(tx, config.PriceBump)
 			pool.all.Add(tx)
 		}
-		if i < accounts { pool.pending[addr] = l } else { pool.queue.queued[addr] = l }
+		if i < accounts {
+			pool.pending[addr] = l
+		} else {
+			pool.queue.queued[addr] = l
+		}
 	}
 	pool.priced.Reheap()
 	return pool
@@ -101,12 +111,22 @@ func BenchmarkResetPreload(b *testing.B) {
 				pool.runReorg(done, &txpoolResetRequest{oldHead: old, newHead: head}, nil, nil)
 				b.StopTimer()
 				for _, e := range pendingtrace.Snapshot(before, pendingtrace.MaxPage).Events {
-					if e.Source == "runReorg" && e.Stage == "pool_lock_hold" { held += e.DurationUS*1000 }
-					if e.Source == "runReorg" && e.Stage == "pool_lock_wait" { waited += e.DurationUS*1000 }
-					if e.Source == "reset" && e.Stage == "pool_phase" { resetNS += e.DurationUS*1000 }
-					if e.Source == "demote" && e.Stage == "pool_phase" { demoteNS += e.DurationUS*1000 }
+					if e.Source == "runReorg" && e.Stage == "pool_lock_hold" {
+						held += e.DurationUS * 1000
+					}
+					if e.Source == "runReorg" && e.Stage == "pool_lock_wait" {
+						waited += e.DurationUS * 1000
+					}
+					if e.Source == "reset" && e.Stage == "pool_phase" {
+						resetNS += e.DurationUS * 1000
+					}
+					if e.Source == "demote" && e.Stage == "pool_phase" {
+						demoteNS += e.DurationUS * 1000
+					}
 				}
-				if pool.currentHead.Load() != head || pool.all.Count() != size+1170+1973 { b.Fatal("reset changed fixture") }
+				if pool.currentHead.Load() != head || pool.all.Count() != size+1170+1973 {
+					b.Fatal("reset changed fixture")
+				}
 				b.StartTimer()
 			}
 			b.StopTimer()
