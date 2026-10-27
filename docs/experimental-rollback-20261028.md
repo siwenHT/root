@@ -8,4 +8,16 @@ The arb APIs, protocol readers, execution validation, configured post-pool windo
 
 The server must pull main, test the restored packages and arb interfaces, build geth and validate the existing config using dumpconfig. Before restarting, record current process/ELF/configuration identities, node sync/head/peers, engine health, database and WAL counters; retain the current ELF as the sole geth.prev. Stop only the verified node PID gracefully, then launch the canonical /home/bsc/fullnode/geth with the existing startup script. Do not copy node state or engine WAL; do not signal old client processes.
 
-Acceptance requires a new node PID matching the built ELF, progressing synchronized BSC head, IPC/HTTP/WS and arb capabilities, and automatic client reconnection. Compare the same finite 60-second IPC newHeads delivery and HTTP RPC measurements before the build and after recovery. Header-to-local delivery includes propagation/import/notification and cannot isolate CPU time or establish causality from an uncontrolled before/after window. Deployment and validation results will be appended after execution.
+Acceptance requires a new node PID matching the built ELF, progressing synchronized BSC head, IPC/HTTP/WS and arb capabilities, and automatic client reconnection. Header-to-local delivery includes propagation/import/notification and cannot isolate CPU time or establish causality from an uncontrolled before/after window.
+
+## Deployed and verified
+
+Server main `8bfb63116798f07ca453a8eb14276a277b920573` passed 784 tests across 16 packages with the original Go 1.25 toolchain. Build and unchanged production dumpconfig checks passed. An initial Go 1.24 invocation was rejected before testing; that environment failure remains in the evidence logs.
+
+The verified old node PID 122797 received SIGINT at 2026-10-27T17:32:02Z and shut down in 2.501 seconds. New PID 2947994 runs ELF `265b9c235b37f72956b1a6c9602344aedb75557f66626300c75c3e470ee618f3`; basic RPC readiness took 21 seconds. The old running ELF is the sole geth.prev. Startup arguments, node/engine configuration and engine ELF are unchanged; no database or WAL copies were made.
+
+Recovery acceptance passed at 17:40:36Z: synchronized progressing BSC head, recovered peers, working IPC/HTTP/WS and schema-4 arb capabilities, diagnostic RPC absent, connected/unpaused engine with advancing counters, monotonic database counts and preserved nonempty WAL paths. rust1/rust2 identities did not change. rust5 PID changed from 3489343 to 2953791 during recovery; no task command controlled an old client. All clients reconnected.
+
+Two fixed 60-second windows each captured 134 heads and 33 HTTP RPC probes with no errors. Head delivery P50 was 106.663 -> 110.034ms and P95 was 218.501 -> 229.702ms; HTTP RPC P95 was 1.522 -> 0.850ms. **Block-delivery latency did not improve in these samples.** Peer sets, txpool size and cache warmth differ, so lower CPU usage is not a controlled causal result. This rollback does not establish why the reported latency increased.
+
+The [validation summary](experimental-rollback-20261028.json) records checks and measurement bounds. Full public evidence, checksums and logs are under `/home/bsc/codex_stage/node-experiment-rollback-20261028/`; the Rust repository's `protocol/v5/node-experiment-rollback-20261028/README.md` is the shared operations entry point.

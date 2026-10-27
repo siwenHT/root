@@ -1,0 +1,137 @@
+{
+  "recorded_utc": "2026-10-27T17:42:56.407103+00:00",
+  "source_commit": "8bfb63116798f07ca453a8eb14276a277b920573",
+  "baseline_commit": "a919c9a49290531f63b20564342a90e019a21ae2",
+  "new_node_pid": 2947994,
+  "new_elf_sha256": "265b9c235b37f72956b1a6c9602344aedb75557f66626300c75c3e470ee618f3",
+  "previous_node_pid": 122797,
+  "previous_elf_sha256": "05b8a9f6ef3156cb8277f3cfb578455c64059515fc1d43ff3bdde6c3aa33f804",
+  "test_cases_passed": 784,
+  "test_packages_passed": 16,
+  "shutdown_seconds": 2.5013751089572906,
+  "startup_seconds": 21.024479161947966,
+  "signal_utc": "2026-10-27T17:32:02.661847+00:00",
+  "ready_utc": "2026-10-27T17:32:26.234210+00:00",
+  "accepted_utc": "2026-10-27T17:40:36.811717+00:00",
+  "checks": {
+    "one_geth": true,
+    "node_pid_changed": true,
+    "node_elf_matches_build": true,
+    "runtime_equals_baseline": true,
+    "config_files_unchanged": true,
+    "engine_identity_unchanged": true,
+    "rust1_identity_unchanged": true,
+    "rust2_identity_unchanged": true,
+    "node_synced": true,
+    "head_advances": true,
+    "chain_bsc": true,
+    "peer_recovery": true,
+    "engine_connected": true,
+    "engine_not_paused": true,
+    "fresh_status": true,
+    "head_builds_grow": true,
+    "pending_builds_grow": true,
+    "pending_received_grows": true,
+    "db_monotonic": true,
+    "wal_paths_preserved_nonempty": true,
+    "all_clients_reconnected": true,
+    "arb_capabilities_schema4": true,
+    "diagnostic_rpc_removed": true,
+    "rollback_elf_matches_old": true
+  },
+  "runtime_acceptance_passed": true,
+  "client_process_changes": {
+    "rust5": {
+      "before": {
+        "pid": 3489343,
+        "comm": "rust5",
+        "exe": "/home/bsc/first_rust5/target/release/rs_app",
+        "cwd": "/home/bsc/first_rust5/target/release",
+        "sha256": "1c73b7d975144d52bd5479b6f86e4332569a4a8367ec36ca1d26fc0f717b5db3"
+      },
+      "after": {
+        "pid": 2953791,
+        "comm": "rust5",
+        "exe": "/home/bsc/first_rust5/target/release/rs_app",
+        "cwd": "/home/bsc/first_rust5/target/release",
+        "sha256": "1c73b7d975144d52bd5479b6f86e4332569a4a8367ec36ca1d26fc0f717b5db3"
+      }
+    }
+  },
+  "commands_sent_to_old_clients": [],
+  "db_before": {
+    "signed": 111978,
+    "events": 2532425
+  },
+  "db_after": {
+    "signed": 111990,
+    "events": 2532466
+  },
+  "head_build_delta": 665,
+  "pending_build_delta": 5898,
+  "before_latency": {
+    "phase": "before",
+    "started_utc": "2026-10-27T17:22:16.178227+00:00",
+    "finished_utc": "2026-10-27T17:23:16.270582+00:00",
+    "duration_seconds": 60.0922648049891,
+    "node_pid": 122797,
+    "head_samples": 134,
+    "head_delivery_lag_ms": {
+      "p50": 106.663,
+      "p95": 218.501,
+      "max": 711.291
+    },
+    "http_rpc_ms": {
+      "samples": 33,
+      "p50": 0.744,
+      "p95": 1.522
+    },
+    "node_cpu_percent": 332.54,
+    "rss_kib": 75846320,
+    "errors": [],
+    "measurement": "IPC newHeads receipt minus BSC header milliseconds; includes propagation, import and notification, not pure EVM time"
+  },
+  "after_latency": {
+    "phase": "after",
+    "started_utc": "2026-10-27T17:39:57.096555+00:00",
+    "finished_utc": "2026-10-27T17:40:57.259898+00:00",
+    "duration_seconds": 60.163300747051835,
+    "node_pid": 2947994,
+    "head_samples": 134,
+    "head_delivery_lag_ms": {
+      "p50": 110.034,
+      "p95": 229.702,
+      "max": 465.903
+    },
+    "http_rpc_ms": {
+      "samples": 33,
+      "p50": 0.693,
+      "p95": 0.85
+    },
+    "node_cpu_percent": 273.97,
+    "rss_kib": 18954808,
+    "errors": [],
+    "measurement": "IPC newHeads receipt minus BSC header milliseconds; includes propagation, import and notification, not pure EVM time",
+    "context_before": {
+      "peers": 100,
+      "txpool": {
+        "pending": "0x583b",
+        "queued": "0x4da"
+      }
+    },
+    "context_after": {
+      "peers": 108,
+      "txpool": {
+        "pending": "0x5d94",
+        "queued": "0x4d2"
+      }
+    }
+  },
+  "block_delivery_latency_improvement_proven": false,
+  "limitations": [
+    "Two finite uncontrolled 60-second windows; peer set, txpool size, workload and cache warmup differ.",
+    "IPC header delivery includes propagation, block import and notification; it is not pure EVM processing time.",
+    "HTTP RPC got faster in these samples; block delivery P95 did not improve.",
+    "rust5 PID change was observed during recovery; no task command controlled old clients."
+  ]
+}
