@@ -23,7 +23,6 @@ import (
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -605,11 +604,8 @@ func handleNewPooledTransactionHashes(backend Backend, msg Decoder, peer *Peer) 
 	if len(ann.Hashes) != len(ann.Types) || len(ann.Hashes) != len(ann.Sizes) {
 		return fmt.Errorf("NewPooledTransactionHashes: invalid len of fields in %v %v %v", len(ann.Hashes), len(ann.Types), len(ann.Sizes))
 	}
-	ann.trace = pendingPacket(msg)
 	// Schedule all the unknown hashes for retrieval
 	for _, hash := range ann.Hashes {
-		ann.trace.LinkHash(hash)
-		pendingtrace.RecordAt(ann.trace.Event(pendingtrace.Event{Hash: hash, Stage: "hash_received", Source: "hash_announce", Operation: packetID(ann.trace)}), msg.Time())
 		peer.MarkTransaction(hash)
 	}
 	return backend.Handle(peer, ann)
@@ -661,7 +657,6 @@ func handleTransactions(backend Backend, msg Decoder, peer *Peer) error {
 	if txs.Len() > maxTransactionAnnouncements {
 		return fmt.Errorf("too many transactions")
 	}
-	txs.receivedAt, txs.trace = msg.Time(), pendingPacket(msg)
 	return backend.Handle(peer, &txs)
 }
 
@@ -685,7 +680,6 @@ func handlePooledTransactions(backend Backend, msg Decoder, peer *Peer) error {
 		return fmt.Errorf("PooledTransactions: %w", err)
 	}
 
-	resp.receivedAt, resp.trace = msg.Time(), pendingPacket(msg)
 	return backend.Handle(peer, &resp)
 }
 
@@ -700,11 +694,4 @@ func handleBlockRangeUpdate(backend Backend, msg Decoder, peer *Peer) error {
 	// We don't do anything with these messages for now, just store them on the peer.
 	peer.lastRange.Store(&update)
 	return nil
-}
-
-func packetID(p *pendingtrace.Packet) uint64 {
-	if p != nil {
-		return p.ID
-	}
-	return 0
 }

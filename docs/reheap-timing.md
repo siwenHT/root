@@ -1,5 +1,7 @@
 # Sampled price-heap rebuild diagnostics
 
+2026-10-28: this experimental instrumentation has been removed from main at the user's request. Historical measurements below remain dated records. See [rollback](experimental-rollback-20261028.md).
+
 The locally validated StateDB preparation change and its release status are
 documented in [txpool state preload](txpool-state-preload.md).
 

@@ -99,7 +99,7 @@ func TestEmptyMessages(t *testing.T) {
 		ReceiptsPacket[*ReceiptList69]{1111, encodeRL([]*ReceiptList69{})},
 		// Transactions
 		GetPooledTransactionsPacket{1111, GetPooledTransactionsRequest([]common.Hash{})},
-		PooledTransactionsPacket{RequestId: 1111, List: encodeRL([]*types.Transaction{})},
+		PooledTransactionsPacket{1111, encodeRL([]*types.Transaction{})},
 		PooledTransactionsRLPPacket{1111, PooledTransactionsRLPResponse([]rlp.RawValue{})},
 	} {
 		have, err := rlp.EncodeToBytes(msg)
@@ -248,7 +248,7 @@ func TestMessages(t *testing.T) {
 			common.FromHex("f847820457f842a000000000000000000000000000000000000000000000000000000000deadc0dea000000000000000000000000000000000000000000000000000000000feedbeef"),
 		},
 		{
-			PooledTransactionsPacket{RequestId: 1111, List: encodeRL(txs)},
+			PooledTransactionsPacket{1111, encodeRL(txs)},
 			common.FromHex("f8d7820457f8d2f867088504a817c8088302e2489435353535353535353535353535353535353535358202008025a064b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c12a064b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c10f867098504a817c809830334509435353535353535353535353535353535353535358202d98025a052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afba052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb"),
 		},
 		{

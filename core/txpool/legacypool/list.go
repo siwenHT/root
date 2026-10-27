@@ -682,75 +682,38 @@ func (l *pricedList) Discard(slots int) (types.Transactions, bool) {
 
 // Reheap forcibly rebuilds the heap based on the current remote transaction set.
 func (l *pricedList) Reheap() {
-	l.reheap(nil)
-}
-
-func (l *pricedList) reheap(d *reheapTiming) {
-	if d != nil {
-		d.begin = time.Now()
-	}
 	l.reheapMu.Lock()
 	defer l.reheapMu.Unlock()
 	start := time.Now()
-	if d != nil {
-		d.stats.MutexWaitUS = start.Sub(d.begin).Microseconds()
-		d.stats.StalesBefore = l.stales.Load()
-		d.stats.UrgentBefore, d.stats.FloatingBefore = len(l.urgent.list), len(l.floating.list)
-	}
 	l.stales.Store(0)
 	l.urgent.list = make([]*types.Transaction, 0, l.all.Count())
-	if d == nil {
-		l.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
-			l.urgent.list = append(l.urgent.list, tx)
-			return true
-		})
-	} else {
-		l.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
-			l.urgent.list = append(l.urgent.list, tx)
-			d.stats.TypeCounts[reheapTypeBucket(tx.Type())]++
-			return true
-		})
-	}
-	if d != nil {
-		lookupEnd := time.Now()
-		d.stats.LookupUS = lookupEnd.Sub(start).Microseconds()
-		d.stats.Total = len(l.urgent.list)
-		d.stats.Pending = d.stats.Total - d.stats.Queued
-		l.rebuildDiagnosticHeaps(d, lookupEnd)
-	} else {
-		heap.Init(&l.urgent)
+	l.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+		l.urgent.list = append(l.urgent.list, tx)
+		return true
+	})
+	heap.Init(&l.urgent)
 
-		// balance out the two heaps by moving the worse half of transactions into the
-		// floating heap
-		// Note: Discard would also do this before the first eviction but Reheap can do
-		// is more efficiently. Also, Underpriced would work suboptimally the first time
-		// if the floating queue was empty.
-		floatingCount := len(l.urgent.list) * floatingRatio / (urgentRatio + floatingRatio)
-		l.floating.list = make([]*types.Transaction, floatingCount)
-		for i := 0; i < floatingCount; i++ {
-			l.floating.list[i] = heap.Pop(&l.urgent).(*types.Transaction)
-		}
-		heap.Init(&l.floating)
+	// balance out the two heaps by moving the worse half of transactions into the
+	// floating heap
+	// Note: Discard would also do this before the first eviction but Reheap can do
+	// is more efficiently. Also, Underpriced would work suboptimally the first time
+	// if the floating queue was empty.
+	floatingCount := len(l.urgent.list) * floatingRatio / (urgentRatio + floatingRatio)
+	l.floating.list = make([]*types.Transaction, floatingCount)
+	for i := 0; i < floatingCount; i++ {
+		l.floating.list[i] = heap.Pop(&l.urgent).(*types.Transaction)
 	}
+	heap.Init(&l.floating)
 	reheapTimer.Update(time.Since(start))
-	if d != nil {
-		d.end = time.Now()
-		d.stats.TotalUS = d.end.Sub(start).Microseconds()
-		d.stats.UrgentAfter, d.stats.FloatingAfter = len(l.urgent.list), len(l.floating.list)
-	}
 }
 
 // SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
 // necessary to call right before SetBaseFee when processing a new block.
 func (l *pricedList) SetBaseFee(baseFee *big.Int) {
-	l.setBaseFee(baseFee, nil)
-}
-
-func (l *pricedList) setBaseFee(baseFee *big.Int, d *reheapTiming) {
 	base := new(uint256.Int)
 	if baseFee != nil {
 		base.SetFromBig(baseFee)
 	}
 	l.urgent.baseFee = base
-	l.reheap(d)
+	l.Reheap()
 }

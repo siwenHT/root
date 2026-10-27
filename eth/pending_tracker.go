@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 )
 
 const pendingTrackerLimit = 200000
@@ -52,9 +51,8 @@ func (t *pendingTxTracker) Record(hash common.Hash, peerID, peerAddr string, cou
 		return
 	}
 
-	acceptedAt := time.Now()
 	t.records[hash] = pendingTxRecord{
-		FirstSeen:   acceptedAt.UnixMilli(),
+		FirstSeen:   time.Now().UnixMilli(),
 		PeerID:      peerID,
 		PeerAddress: peerAddr,
 	}
@@ -69,7 +67,6 @@ func (t *pendingTxTracker) Record(hash common.Hash, peerID, peerAddr string, cou
 		t.peerCounts[peerAddr]++
 	}
 	t.mu.Unlock()
-	pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "tracker_first_seen"}, acceptedAt)
 }
 
 // FirstSeen returns the first seen record if any.

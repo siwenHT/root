@@ -434,22 +434,6 @@ func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *uint256.I
 	if baseFee == nil {
 		return tx.GasTipCapCmp(other)
 	}
-	if baseFee.IsZero() {
-		txTip, txFee := tx.inner.gasTipCap(), tx.inner.gasFeeCap()
-		otherTip, otherFee := other.inner.gasTipCap(), other.inner.gasFeeCap()
-		// At zero base fee the effective tip is min(tip cap, fee cap). Keep
-		// malformed caps on the conversion path to preserve overflow behavior.
-		if txTip.Sign() >= 0 && txFee.Sign() >= 0 && otherTip.Sign() >= 0 && otherFee.Sign() >= 0 &&
-			txTip.BitLen() <= 256 && txFee.BitLen() <= 256 && otherTip.BitLen() <= 256 && otherFee.BitLen() <= 256 {
-			if txTip.Cmp(txFee) > 0 {
-				txTip = txFee
-			}
-			if otherTip.Cmp(otherFee) > 0 {
-				otherTip = otherFee
-			}
-			return txTip.Cmp(otherTip)
-		}
-	}
 	// Use more efficient internal method.
 	txTip, otherTip := new(uint256.Int), new(uint256.Int)
 	tx.calcEffectiveGasTip(txTip, baseFee)

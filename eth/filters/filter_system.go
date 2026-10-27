@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/filtermaps"
 	"github.com/ethereum/go-ethereum/core/history"
@@ -503,12 +502,7 @@ func (es *EventSystem) handleLogs(filters filterIndex, ev []*types.Log) {
 
 func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) {
 	for _, f := range filters[PendingTransactionsSubscription] {
-		deliveryID := pendingtrace.NextID()
-		begin := time.Now()
 		f.txs <- ev.Txs
-		end := time.Now()
-		tracePendingBatch(ev.Txs, "subscriber_send_begin", string(f.id), deliveryID, begin)
-		tracePendingBatch(ev.Txs, "subscriber_send_end", string(f.id), deliveryID, end)
 	}
 }
 
@@ -566,7 +560,6 @@ func (es *EventSystem) eventLoop() {
 	for {
 		select {
 		case ev := <-es.txsCh:
-			tracePendingBatch(ev.Txs, "feed_received", "", 0, time.Now())
 			backlog := uint64(len(es.txsCh))
 			if backlog > feedBacklogMax {
 				feedBacklogMax = backlog

@@ -1,5 +1,7 @@
 # Pending notification timing
 
+2026-10-28: this experimental instrumentation has been removed from main at the user's request. Historical measurements below remain dated records. See [rollback](experimental-rollback-20261028.md) for source and production status.
+
 Sampled price-heap comparison counts and phase costs are described in
 [reheap timing](reheap-timing.md). These additions have not been deployed by
 the implementation/validation task.

@@ -501,14 +501,6 @@ func (bc *BlockChain) StateAt(root common.Hash) (*state.StateDB, error) {
 	return stateDb, nil
 }
 
-// StateAtForPool transfers a fresh, exclusively owned StateDB at root to the
-// caller. Only its thread-safe underlying Reader/database may be shared. In
-// particular, neither this StateDB nor its mutable object maps are published
-// elsewhere. The txpool uses this explicit contract to read outside its lock.
-func (bc *BlockChain) StateAtForPool(root common.Hash) (*state.StateDB, error) {
-	return bc.StateAt(root)
-}
-
 // StateWithCacheAt returns a new mutable state with cache based on a particular point in time.
 func (bc *BlockChain) StateWithCacheAt(root common.Hash) (*state.StateDB, error) {
 	_, process, err := bc.statedb.ReadersWithCacheStats(root)

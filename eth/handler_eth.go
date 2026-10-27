@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
@@ -70,7 +69,7 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.handleBlockBroadcast(peer, packet)
 
 	case *eth.NewPooledTransactionHashesPacket:
-		return h.txFetcher.NotifyWithTrace(peer.ID(), packet.Types, packet.Sizes, packet.Hashes, packet.PendingPacket())
+		return h.txFetcher.Notify(peer.ID(), packet.Types, packet.Sizes, packet.Hashes)
 
 	case *eth.TransactionsPacket:
 		txs, err := packet.Items()
@@ -80,8 +79,7 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		if err := handleTransactions(peer, txs, true); err != nil {
 			return fmt.Errorf("Transactions: %v", err)
 		}
-		tracePendingBodies(txs, packet.ReceivedAt(), "broadcast", packet.PendingPacket())
-		return h.txFetcher.EnqueueWithTrace(peer.ID(), txs, false, packet.PendingPacket())
+		return h.txFetcher.Enqueue(peer.ID(), txs, false)
 
 	case *eth.PooledTransactionsPacket:
 		txs, err := packet.List.Items()
@@ -91,24 +89,10 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		if err := handleTransactions(peer, txs, false); err != nil {
 			return fmt.Errorf("PooledTransactions: %v", err)
 		}
-		tracePendingBodies(txs, packet.ReceivedAt(), "request_reply", packet.PendingPacket())
-		return h.txFetcher.EnqueueWithTrace(peer.ID(), txs, true, packet.PendingPacket())
+		return h.txFetcher.Enqueue(peer.ID(), txs, true)
 
 	default:
 		return fmt.Errorf("unexpected eth packet type: %T", packet)
-	}
-}
-
-func tracePendingBodies(txs []*types.Transaction, received time.Time, source string, packet *pendingtrace.Packet) {
-	packetID := pendingtrace.NextID()
-	if packet != nil {
-		packetID = packet.ID
-	}
-	for _, tx := range txs {
-		hash := tx.Hash()
-		packet.LinkHash(hash)
-		pendingtrace.RecordAt(packet.Event(pendingtrace.Event{Hash: hash, Stage: "body_received", Source: source, Operation: packetID}), received)
-		pendingtrace.RecordAt(packet.Event(pendingtrace.Event{Hash: hash, Stage: "body_decoded", Source: source, Operation: packetID}), tx.Time())
 	}
 }
 

@@ -21,10 +21,8 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -165,12 +163,7 @@ func (p *NewBlockHashesPacket) Unpack() ([]common.Hash, []uint64) {
 // TransactionsPacket is the network packet for broadcasting new transactions.
 type TransactionsPacket struct {
 	rlp.RawList[*types.Transaction]
-	receivedAt time.Time // local metadata, excluded from RLP
-	trace      *pendingtrace.Packet
 }
-
-func (p *TransactionsPacket) ReceivedAt() time.Time               { return p.receivedAt }
-func (p *TransactionsPacket) PendingPacket() *pendingtrace.Packet { return p.trace }
 
 // GetBlockHeadersRequest represents a block header query.
 type GetBlockHeadersRequest struct {
@@ -346,13 +339,10 @@ type ReceiptsRLPPacket struct {
 
 // NewPooledTransactionHashesPacket represents a transaction announcement packet on eth/68 and newer.
 type NewPooledTransactionHashesPacket struct {
-	trace  *pendingtrace.Packet
 	Types  []byte
 	Sizes  []uint32
 	Hashes []common.Hash
 }
-
-func (p *NewPooledTransactionHashesPacket) PendingPacket() *pendingtrace.Packet { return p.trace }
 
 // GetPooledTransactionsRequest represents a transaction query.
 type GetPooledTransactionsRequest []common.Hash
@@ -369,14 +359,9 @@ type PooledTransactionsResponse []*types.Transaction
 // PooledTransactionsPacket is the network packet for transaction distribution
 // with request ID wrapping.
 type PooledTransactionsPacket struct {
-	RequestId  uint64
-	List       rlp.RawList[*types.Transaction]
-	receivedAt time.Time // local metadata, excluded from RLP
-	trace      *pendingtrace.Packet
+	RequestId uint64
+	List      rlp.RawList[*types.Transaction]
 }
-
-func (p *PooledTransactionsPacket) ReceivedAt() time.Time               { return p.receivedAt }
-func (p *PooledTransactionsPacket) PendingPacket() *pendingtrace.Packet { return p.trace }
 
 // PooledTransactionsRLPResponse is the network packet for transaction distribution, used
 // in the cases we already have them in rlp-encoded form

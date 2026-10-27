@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/bitutil"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -49,10 +48,9 @@ import (
 // This type is not generally safe for concurrent use, but reading and writing of messages
 // may happen concurrently after the handshake.
 type Conn struct {
-	dialDest   *ecdsa.PublicKey
-	conn       net.Conn
-	session    *sessionState
-	readTiming pendingtrace.ReadTiming
+	dialDest *ecdsa.PublicKey
+	conn     net.Conn
+	session  *sessionState
 
 	// These are the buffers for snappy compression.
 	// Compression is enabled if they are non-nil.
@@ -135,14 +133,7 @@ func (c *Conn) Read() (code uint64, data []byte, wireSize int, err error) {
 		panic("can't ReadMsg before handshake")
 	}
 
-	b := &c.session.rbuf
-	c.readTiming = pendingtrace.ReadTiming{BufferedBytes: b.end - len(b.data), BufferedAt: b.lastRead}
 	frame, err := c.session.readFrame(c.conn)
-	c.readTiming.IOBegin, c.readTiming.IOEnd = b.ioBegin, b.ioEnd
-	c.readTiming.FrameBytes = b.frameBytes
-	if err == nil {
-		c.readTiming.FrameEnd, c.readTiming.FrameComplete = time.Now(), true
-	}
 	if err != nil {
 		return 0, nil, 0, err
 	}
@@ -165,14 +156,8 @@ func (c *Conn) Read() (code uint64, data []byte, wireSize int, err error) {
 		c.snappyReadBuffer = growslice(c.snappyReadBuffer, actualSize)
 		data, err = snappy.Decode(c.snappyReadBuffer, data)
 	}
-	if err == nil {
-		c.readTiming.DecodeEnd = time.Now()
-	}
 	return code, data, wireSize, err
 }
-
-// ReadTiming is read only by the goroutine serializing Conn.Read.
-func (c *Conn) ReadTiming() pendingtrace.ReadTiming { return c.readTiming }
 
 func (h *sessionState) readFrame(conn io.Reader) ([]byte, error) {
 	h.rbuf.reset()
@@ -198,7 +183,6 @@ func (h *sessionState) readFrame(conn io.Reader) ([]byte, error) {
 		rsize += 16 - padding
 	}
 
-	h.rbuf.frameBytes = 32 + int(rsize) + 16
 	// Read the frame content.
 	frame, err := h.rbuf.read(conn, int(rsize))
 	if err != nil {

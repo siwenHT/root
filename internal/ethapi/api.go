@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
@@ -2894,16 +2893,6 @@ func (api *DebugAPI) PendingTxFirstSeen(ctx context.Context, hash common.Hash) (
 		PeerID:      peerID,
 		PeerAddress: peerAddr,
 	}, nil
-}
-
-// PendingTiming reads a bounded page of sampled node-side timing evidence.
-// The cursor is local to Page.BootID. This method never clears the ring.
-func (api *DebugAPI) PendingTiming(after hexutil.Uint64, limit *hexutil.Uint64) pendingtrace.Page {
-	pageSize := pendingtrace.MaxPage
-	if limit != nil && *limit > 0 && uint64(*limit) < uint64(pageSize) {
-		pageSize = int(*limit)
-	}
-	return pendingtrace.Snapshot(uint64(after), pageSize)
 }
 
 // NetAPI offers network related RPC methods

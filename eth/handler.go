@@ -35,7 +35,6 @@ import (
 
 	"github.com/dchest/siphash"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/parlia"
 	"github.com/ethereum/go-ethereum/core"
@@ -103,7 +102,6 @@ type txPool interface {
 
 	// Add should add the given transactions to the pool.
 	Add(txs []*types.Transaction, sync bool) []error
-	AddWithTrace(txs []*types.Transaction, sync bool, packet *pendingtrace.Packet) []error
 
 	// Pending should return pending transactions.
 	// The slice should be modifiable by the caller.
@@ -420,8 +418,8 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		}
 		return p.RequestTxs(hashes)
 	}
-	addTxs := func(peer string, txs []*types.Transaction, packet *pendingtrace.Packet) []error {
-		errors := h.txpool.AddWithTrace(txs, false, packet)
+	addTxs := func(peer string, txs []*types.Transaction) []error {
+		errors := h.txpool.Add(txs, false)
 		if peer != "" {
 			h.incrementPeerTxCount(peer, len(txs))
 		}
@@ -466,7 +464,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		h.recordPendingTxs(peer, txs, errors)
 		return errors
 	}
-	h.txFetcher = fetcher.NewTxFetcherWithTrace(h.txpool.Has, addTxs, fetchTx, h.dropPeer)
+	h.txFetcher = fetcher.NewTxFetcher(h.txpool.Has, addTxs, fetchTx, h.dropPeer)
 	h.chainSync = newChainSyncer(h)
 	return h, nil
 }

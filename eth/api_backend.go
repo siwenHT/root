@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -343,7 +342,6 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 }
 
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	pendingtrace.Record(pendingtrace.Event{Hash: signedTx.Hash(), Stage: "local_submit", Source: "local_rpc"})
 	errs := b.eth.txPool.Add([]*types.Transaction{signedTx}, false)
 	if b.eth.handler != nil {
 		b.eth.handler.recordPendingTxs("", []*types.Transaction{signedTx}, errs)
@@ -451,13 +449,11 @@ func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Trans
 		state  *state.StateDB
 		err    error
 	)
-	stateSource := "miner_pending"
 
 	if pendingBlock, _, pendingState := b.eth.miner.Pending(); pendingBlock != nil && pendingState != nil {
 		header = types.CopyHeader(pendingBlock.Header())
 		state = pendingState.Copy()
 	} else {
-		stateSource = "canonical_head"
 		latest := b.eth.blockchain.CurrentBlock()
 		if latest == nil {
 			return nil, errors.New("no latest block available")
@@ -478,8 +474,6 @@ func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Trans
 	if state == nil {
 		return nil, errors.New("state unavailable for simulation")
 	}
-	// This is the backend's selected parent, not the earlier batch header.
-	pendingtrace.State(ctx, header.ParentHash, stateSource)
 
 	chainConfig := b.eth.blockchain.Config()
 	signer := types.MakeSigner(chainConfig, header.Number, header.Time)

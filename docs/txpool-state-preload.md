@@ -1,5 +1,7 @@
 # Txpool state preload outside the write lock
 
+2026-10-28: this local-only experiment was removed from main with the [experimental rollback](experimental-rollback-20261028.md). It was not deployed in the running production binary.
+
 Status: local implementation and validation, 2026-10-25. **Not release ready:
 the hot-RLP 37,275-account case exceeds the predeclared 5% CPU budget.** Not deployed. No
 configuration, startup arguments or production process changes are part of this
