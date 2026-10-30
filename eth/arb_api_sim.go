@@ -215,6 +215,10 @@ func (api *ArbAPI) SimulateTarget(args SimulateTargetArgs) (*JobIDResult, error)
 // is intentionally a separate result kind: callers must verify the returned
 // raw digest, block environment digest and executor ledger before dispatch.
 func (api *ArbAPI) SimulateStateRaw(args SimulateStateRawArgs) (*JobIDResult, error) {
+	return api.simulateStateRaw(args, nil)
+}
+
+func (api *ArbAPI) simulateStateRaw(args SimulateStateRawArgs, auction *AuctionState) (*JobIDResult, error) {
 	ident, err := api.commonSimValidate(args.RequestID, args.Stamp, args.ParentHandle, args.BudgetMicros)
 	if err != nil {
 		return nil, err
@@ -254,19 +258,33 @@ func (api *ArbAPI) SimulateStateRaw(args SimulateStateRawArgs) (*JobIDResult, er
 		FieldBytes(envHash[:]).FieldBytes(rawHash.Bytes()).
 		FieldBytes(mt.executor.Bytes()).FieldBytes(mt.baseToken.Bytes()).
 		FieldBytes([]byte(revision)).Finalize())
+	kind := "state_raw"
+	namespace := arb.NamespaceSimulateStateRaw
+	if auction != nil {
+		overlay, err := auction.digest()
+		if err != nil {
+			return nil, err
+		}
+		digest = auctionRequestDigest(digest, overlay)
+		kind = "auction_raw"
+		namespace = arb.JobNamespace("arb_simulateAuctionRaw")
+	}
 	run := func(budget *arb.ReadBudget) (*arb.JobOutcome, bool) {
 		base, header, release, berr := api.svc.borrowBase(args.ParentHandle, ident)
 		if berr != nil {
-			return &arb.JobOutcome{Kind: "state_raw", ErrCode: berr.Error()}, false
+			return &arb.JobOutcome{Kind: kind, ErrCode: berr.Error()}, false
 		}
 		defer release()
+		if auction != nil {
+			auction.apply(base)
+		}
 		x := newTargetExecutor(api.svc.eth.blockchain, header, base)
 		res, xerr := x.ExecuteTargetWithEnv(tx, budget, args.BlockEnv)
 		if xerr != nil {
-			return &arb.JobOutcome{Kind: "state_raw", ErrCode: xerr.Error()}, false
+			return &arb.JobOutcome{Kind: kind, ErrCode: xerr.Error()}, false
 		}
 		out := api.mapTargetOutcome(args.ParentHandle, ident, res, budget)
-		out.Kind = "state_raw"
+		out.Kind = kind
 		if res.Class.Status != arb.StatusSuccess || !res.Class.ReceiptTrusted {
 			return out, false
 		}
@@ -280,10 +298,15 @@ func (api *ArbAPI) SimulateStateRaw(args SimulateStateRawArgs) (*JobIDResult, er
 		ledger["raw_digest"] = hex32Str(d)
 		ledger["block_env_hash"] = hex32Str(envHash)
 		ledger["tx_statuses"] = []string{"success"}
+		if auction != nil {
+			overlay, _ := auction.digest()
+			ledger["auction_id"] = auction.ID
+			ledger["overlay_digest"] = overlay.Hex()
+		}
 		out.ExecutorPayload = ledger
 		return out, true
 	}
-	id, err := api.submitAndEnqueue(arb.NamespaceSimulateStateRaw, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	id, err := api.submitAndEnqueue(namespace, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}

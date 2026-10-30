@@ -309,6 +309,10 @@ func decodeMeasureTarget(executor, baseToken string) (measureTarget, error) {
 // is always false in the result. When executor+base_token are supplied it also measures
 // the §391 base-token retention at T0 (post-prefix, pre-candidate) and T2 (post-candidate).
 func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, error) {
+	return api.simulateCandidate(args, nil)
+}
+
+func (api *ArbAPI) simulateCandidate(args SimulateCandidateArgs, auction *AuctionState) (*JobIDResult, error) {
 	ident, err := api.commonSimValidate(args.RequestID, args.Stamp, args.ParentHandle, args.BudgetMicros)
 	if err != nil {
 		return nil, err
@@ -352,19 +356,34 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 	}
 	digest := hex32Str(dig.Finalize())
 
+	kind := "candidate"
+	namespace := arb.NamespaceSimulateCandidate
+	if auction != nil {
+		overlay, err := auction.digest()
+		if err != nil {
+			return nil, err
+		}
+		digest = auctionRequestDigest(digest, overlay)
+		kind = "auction_candidate"
+		namespace = arb.JobNamespace("arb_simulateAuctionCandidate")
+	}
 	run := func(budget *arb.ReadBudget) (*arb.JobOutcome, bool) {
 		base, header, release, berr := api.svc.borrowBase(args.ParentHandle, ident)
 		if berr != nil {
-			return &arb.JobOutcome{Kind: "candidate", ErrCode: berr.Error()}, false
+			return &arb.JobOutcome{Kind: kind, ErrCode: berr.Error()}, false
 		}
 		defer release()
+		if auction != nil {
+			auction.apply(base)
+		}
 		x := newTargetExecutor(api.svc.eth.blockchain, header, base)
 		res, xerr := x.RunCandidateWithEnv(prefix, env, PurposeDiagnostic, budget, args.BlockEnv)
 		if xerr != nil {
-			return &arb.JobOutcome{Kind: "candidate", ErrCode: xerr.Error()}, false
+			return &arb.JobOutcome{Kind: kind, ErrCode: xerr.Error()}, false
 		}
 		logCandidateExecutionFailure(args, env, targetHash, len(prefix), res)
 		out := api.mapCandidateOutcome(args.ParentHandle, ident, res, budget)
+		out.Kind = kind
 		// §391 retention: measure ONLY when the caller named a subject AND the candidate
 		// actually succeeded (out.Complete). T0 reads the isolated post-prefix snapshot,
 		// T2 the post-candidate state — same budgeted read-only path as pool reads. A read
@@ -385,7 +404,7 @@ func (api *ArbAPI) SimulateCandidate(args SimulateCandidateArgs) (*JobIDResult, 
 		return out, out.Complete
 	}
 
-	jobID, err := api.submitAndEnqueue(arb.NamespaceSimulateCandidate, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
+	jobID, err := api.submitAndEnqueue(namespace, args.RequestID, args.Stamp, digest, args.BudgetMicros, run)
 	if err != nil {
 		return nil, err
 	}
