@@ -354,6 +354,30 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
+// GetBalanceAndNonce reads account fields without constructing an EVM state
+// object. Cached mutations still take precedence over the underlying reader.
+// The returned balance must not be modified by the caller.
+func (s *StateDB) GetBalanceAndNonce(addr common.Address) (*uint256.Int, uint64) {
+	if obj := s.stateObjects[addr]; obj != nil {
+		return obj.Balance(), obj.Nonce()
+	}
+	if _, deleted := s.stateObjectsDestruct[addr]; deleted {
+		return common.U2560, 0
+	}
+	s.AccountLoaded++
+	start := time.Now()
+	acct, err := s.reader.Account(addr)
+	s.AccountReads += time.Since(start)
+	if err != nil {
+		s.setError(fmt.Errorf("getStateObject (%x) error: %w", addr.Bytes(), err))
+		return common.U2560, 0
+	}
+	if acct == nil {
+		return common.U2560, 0
+	}
+	return acct.Balance, acct.Nonce
+}
+
 // GetStorageRoot retrieves the storage root from the given address or empty
 // if object not found.
 func (s *StateDB) GetStorageRoot(addr common.Address) common.Hash {

@@ -1521,6 +1521,10 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 // pending limit. The algorithm tries to reduce transaction counts by an approximately
 // equal number for all for accounts with many pending transactions.
 func (pool *LegacyPool) truncatePending() {
+	// The lookup includes queued transactions, so it bounds the pending count.
+	if uint64(pool.all.Count()) <= pool.config.GlobalSlots {
+		return
+	}
 	pending := uint64(0)
 
 	// Assemble a spam order to penalize large transactors first
@@ -1628,7 +1632,7 @@ func (pool *LegacyPool) demoteUnexecutables() {
 	// Iterate over all accounts and demote any non-executable transactions
 	gasLimit := pool.currentHead.Load().GasLimit
 	for addr, list := range pool.pending {
-		nonce := pool.currentState.GetNonce(addr)
+		balance, nonce := pool.currentState.GetBalanceAndNonce(addr)
 
 		// Drop all transactions that are deemed too old (low nonce)
 		olds := list.Forward(nonce)
@@ -1638,7 +1642,7 @@ func (pool *LegacyPool) demoteUnexecutables() {
 			log.Trace("Removed old pending transaction", "hash", hash)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), gasLimit)
+		drops, invalids := list.Filter(balance, gasLimit)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
