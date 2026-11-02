@@ -313,6 +313,7 @@ func (p *TxPool) GetMetadata(hash common.Hash) *TxMetadata {
 // Note, if sync is set the method will block until all internal maintenance
 // related to the add is finished. Only use this during tests for determinism.
 func (p *TxPool) Add(txs []*types.Transaction, sync bool) []error {
+	finishTrace := traceAdd(txs)
 	// Split the input transactions between the subpools. It shouldn't really
 	// happen that we receive merged batches, but better graceful than strange
 	// errors.
@@ -351,6 +352,9 @@ func (p *TxPool) Add(txs []*types.Transaction, sync bool) []error {
 		// Find which subpool handled it and pull in the corresponding error
 		errs[i] = errsets[split][0]
 		errsets[split] = errsets[split][1:]
+	}
+	if finishTrace != nil {
+		finishTrace(errs)
 	}
 	return errs
 }

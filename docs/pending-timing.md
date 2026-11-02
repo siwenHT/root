@@ -1,5 +1,7 @@
 # Pending notification timing
 
+2026-11-02: the basic instrumentation through `3e2e778` is being restored for a new diagnosis. See [scope and validation](pending-timing-20261102.md). The later lock/P2P extensions described below are not part of that restoration.
+
 2026-10-28: this experimental instrumentation has been removed from main at the user's request. Historical measurements below remain dated records. See [rollback](experimental-rollback-20261028.md) for source and production status.
 
 Sampled price-heap comparison counts and phase costs are described in

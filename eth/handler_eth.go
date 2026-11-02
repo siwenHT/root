@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
@@ -79,6 +80,7 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		if err := handleTransactions(peer, txs, true); err != nil {
 			return fmt.Errorf("Transactions: %v", err)
 		}
+		tracePendingBodies(txs, packet.ReceivedAt(), "broadcast")
 		return h.txFetcher.Enqueue(peer.ID(), txs, false)
 
 	case *eth.PooledTransactionsPacket:
@@ -89,10 +91,20 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		if err := handleTransactions(peer, txs, false); err != nil {
 			return fmt.Errorf("PooledTransactions: %v", err)
 		}
+		tracePendingBodies(txs, packet.ReceivedAt(), "request_reply")
 		return h.txFetcher.Enqueue(peer.ID(), txs, true)
 
 	default:
 		return fmt.Errorf("unexpected eth packet type: %T", packet)
+	}
+}
+
+func tracePendingBodies(txs []*types.Transaction, received time.Time, source string) {
+	packetID := pendingtrace.NextID()
+	for _, tx := range txs {
+		hash := tx.Hash()
+		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "body_received", Source: source, Operation: packetID}, received)
+		pendingtrace.RecordAt(pendingtrace.Event{Hash: hash, Stage: "body_decoded", Source: source, Operation: packetID}, tx.Time())
 	}
 }
 

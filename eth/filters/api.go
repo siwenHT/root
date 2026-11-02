@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/pendingtrace"
 	"github.com/ethereum/go-ethereum/core/history"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -207,13 +208,22 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 			startedAt  time.Time
 			finishedAt time.Time
 			header     *types.Header
+			trace      *pendingtrace.Attempt
 		}
 
 		results := make(chan simResult, maxWorkers)
-		inflight := make(map[common.Hash]struct{}, maxWorkers)
+		inflight := make(map[common.Hash]*pendingtrace.Attempt, maxWorkers)
 		var toSimulate []*types.Transaction
 		var batchReceivedAt time.Time
+		var batchID uint64
 		var latest *types.Header
+		defer func() {
+			at := time.Now()
+			for _, trace := range inflight {
+				trace.Record("attempt_cancelled", "cancelled", at)
+			}
+			tracePendingBatch(toSimulate, "queued_cancelled", string(pendingTxSub.ID), batchID, at)
+		}()
 		for {
 			// Fill free slots across batches instead of waiting for the slowest
 			// transaction in the preceding batch to finish.
@@ -221,16 +231,23 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				tx := toSimulate[0]
 				toSimulate[0] = nil
 				toSimulate = toSimulate[1:]
-				inflight[tx.Hash()] = struct{}{}
+				trace := pendingtrace.NewAttempt(tx.Hash(), string(pendingTxSub.ID), string(rpcSub.ID), batchID)
+				inflight[tx.Hash()] = trace
 				queuedAt, header := batchReceivedAt, latest
+				trace.Record("simulation_batch_dequeued", "", queuedAt)
+				trace.Mark("simulation_scheduled", "")
+				traceCtx := pendingtrace.WithAttempt(simulationCtx, trace)
 				gopool.Submit(func() {
 					startedAt := time.Now()
-					receipt, err := api.sys.backend.SimulateTransaction(simulationCtx, tx)
+					trace.Record("simulation_started", "", startedAt)
+					receipt, err := api.sys.backend.SimulateTransaction(traceCtx, tx)
 					result := simResult{tx: tx, receipt: receipt, err: err,
-						queuedAt: queuedAt, startedAt: startedAt, finishedAt: time.Now(), header: header}
+						queuedAt: queuedAt, startedAt: startedAt, finishedAt: time.Now(), header: header, trace: trace}
+					trace.Record("simulation_finished", pendingOutcome(receipt, err), result.finishedAt)
 					select {
 					case results <- result:
 					case <-simulationCtx.Done():
+						trace.Mark("simulation_result_discarded", "cancelled")
 					}
 				})
 				continue
@@ -244,6 +261,8 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 			select {
 			case batch := <-batches:
 				batchReceivedAt = time.Now()
+				batchID = pendingtrace.NextID()
+				tracePendingBatch(batch, "subscriber_batch_dequeued", string(pendingTxSub.ID), batchID, batchReceivedAt)
 				queuedBatches := uint64(len(txs))
 				if queuedBatches > queuedBatchesMax {
 					queuedBatchesMax = queuedBatches
@@ -263,6 +282,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				for _, tx := range batch {
 					hash := tx.Hash()
 					if _, ok := batchSeen[hash]; ok {
+						pendingtrace.Record(pendingtrace.Event{Hash: hash, Stage: "simulation_skipped", Subscription: string(pendingTxSub.ID), Operation: batchID, Outcome: "batch_duplicate"})
 						continue
 					}
 					batchSeen[hash] = struct{}{}
@@ -271,6 +291,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 					_, running := inflight[hash]
 
 					if exists || running {
+						pendingtrace.Record(pendingtrace.Event{Hash: hash, Stage: "simulation_skipped", Subscription: string(pendingTxSub.ID), Operation: batchID, Outcome: "seen_or_inflight"})
 						continue
 					}
 					toSimulate = append(toSimulate, tx)
@@ -279,6 +300,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 			case result := <-results:
 				delete(inflight, result.tx.Hash())
 				readyAt := time.Now()
+				result.trace.Record("simulation_result_dequeued", pendingOutcome(result.receipt, result.err), readyAt)
 				queueMs := uint64(result.startedAt.Sub(result.queuedAt).Milliseconds())
 				simulationMs := uint64(result.finishedAt.Sub(result.startedAt).Milliseconds())
 				readyMs := uint64(readyAt.Sub(result.queuedAt).Milliseconds())
@@ -332,11 +354,13 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				}
 
 				// 立即通知订阅端，无需等待其他交易
+				traceCtx := pendingtrace.WithAttempt(simulationCtx, result.trace)
+				result.trace.Mark("payload_build_begin", "")
 				if fullTx != nil && *fullTx {
 					rpcTx := ethapi.NewRPCPendingTransaction(result.tx, result.header, chainConfig, result.receipt.Logs)
-					notifier.Notify(rpcSub.ID, rpcTx)
+					notifier.NotifyWithContext(traceCtx, rpcSub.ID, rpcTx)
 				} else {
-					notifier.Notify(rpcSub.ID, hash)
+					notifier.NotifyWithContext(traceCtx, rpcSub.ID, hash)
 				}
 			case <-rpcSub.Err():
 				return
