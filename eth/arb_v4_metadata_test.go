@@ -89,7 +89,7 @@ func TestCapturedUniswapHookKeysPreserveSameStateMetadata(t *testing.T) {
 			if got.Resolved || got.Num != 0 || got.Den != 0 || got.Status != "v4_hook_evm_required" {
 				t.Fatalf("hook fee treated as scalar: %+v", got)
 			}
-			pr := PoolReadSpec{Kind: "v4", Locator: strings.ToLower(bscV4Manager.Hex()), Manager: strings.ToLower(bscV4Manager.Hex()), PoolKey: row.PoolID, Hook: row.Hook, Token0: common.BytesToAddress(raw[:32]).Hex(), Token1: common.BytesToAddress(raw[32:64]).Hex(), TickSpacing: int32(row.TickSpacing)}
+			pr := PoolReadSpec{Kind: "v4", Locator: strings.ToLower(bscV4Manager.Hex()), Manager: strings.ToLower(bscV4Manager.Hex()), PoolKey: row.PoolID, Hook: row.Hook, Token0: strings.ToLower(common.BytesToAddress(raw[:32]).Hex()), Token1: strings.ToLower(common.BytesToAddress(raw[32:64]).Hex()), TickSpacing: int32(row.TickSpacing)}
 			if !validPoolRead(&pr) {
 				t.Fatalf("hook read rejected: %+v", pr)
 			}
