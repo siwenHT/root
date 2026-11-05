@@ -46,7 +46,7 @@ func TestMetricBooksUsePostStateChildAndIsolatedCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{result.Books[0].Immutable, result.Books[0].Data, result.Books[0].Slot0} {
+	for index, value := range []string{result.Books[0].Immutable, result.Books[0].Data, result.Books[0].Slot0} {
 		raw, err := hexutil.Decode(value)
 		if err != nil || len(raw) != 160 {
 			t.Fatalf("bad EVM return: %s (%v)", value, err)
@@ -55,8 +55,12 @@ func TestMetricBooksUsePostStateChildAndIsolatedCalls(t *testing.T) {
 		for i := range values {
 			values[i] = new(big.Int).SetBytes(raw[i*32 : (i+1)*32])
 		}
+		expectedOrigin := common.HexToAddress(args.Sender)
+		if index == 1 {
+			expectedOrigin = common.Address{}
+		}
 		if values[0].Uint64() != 43 || values[1].String() != args.BlockEnv.Number || values[2].String() != args.BlockEnv.TimestampSeconds ||
-			common.BigToAddress(values[3]) != common.HexToAddress(args.Sender) || values[4].String() != args.GasPrice {
+			common.BigToAddress(values[3]) != expectedOrigin || values[4].String() != args.GasPrice {
 			t.Fatalf("wrong post state or child context: %v", values)
 		}
 	}

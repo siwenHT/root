@@ -78,7 +78,14 @@ func readMetricBook(caller *poolCaller, pool common.Address) (MetricBookResult, 
 	data := crypto.Keccak256([]byte("getLiquidityDepthLive(address,uint8)"))[:4]
 	data = append(data, common.LeftPadBytes(pool.Bytes(), 32)...)
 	data = append(data, common.LeftPadBytes([]byte{255}, 32)...)
+	// The official depth lens enters quote-only paths restricted to zero origin.
+	// Keep the real transaction context for the pool and slot accessors.
+	context := caller.evm.TxContext
+	offchain := context
+	offchain.Origin = common.Address{}
+	caller.evm.SetTxContext(offchain)
 	depth, err := metricCall(caller, metricDataProvider, data)
+	caller.evm.SetTxContext(context)
 	if err != nil {
 		return MetricBookResult{}, err
 	}
