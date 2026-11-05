@@ -13,9 +13,8 @@ var bscV4Manager = common.HexToAddress("0x28e2ea090877bf75740558f6bfb36a5ffee9e9
 var bscV4Positions = common.HexToAddress("0x7a4a5c919ae2541aed11041a1aeee68f1287f95b")
 var bscV4CodeHash = common.HexToHash("0x48752321ee7abf0d2a17c30679df9a1ddd14dc75d28b26e2509b76396145a005")
 
-// The existing wire has one fee for both directions. Resolve it only when
-// both directional protocol fees agree and the verified key has no hook.
-// Dynamic or asymmetric fees remain unresolved, never flattened to an estimate.
+// Keep full PoolKey metadata for hooks and dynamic fees. The legacy scalar
+// fee is resolved only for hook-free static pools with symmetric protocol fees.
 func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spacing int64) InfinityFeeResolution {
 	if len(raw) != 160 || crypto.Keccak256Hash(raw) != id {
 		return unresolvedInfinityFee("v4_pool_key_mismatch")
@@ -28,22 +27,22 @@ func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spa
 	if bytes.Compare(raw[:32], raw[32:64]) >= 0 {
 		return unresolvedInfinityFee("v4_currency_order")
 	}
-	for _, b := range raw[128:160] {
-		if b != 0 {
-			return unresolvedInfinityFee("v4_hook_required")
-		}
+	if !bytes.Equal(raw[128:140], make([]byte, 12)) {
+		return unresolvedInfinityFee("v4_hook_padding")
 	}
-	for _, b := range append(append([]byte{}, raw[64:93]...), raw[96:125]...) {
+	for _, b := range append(append([]byte{}, raw[64:92]...), raw[96:125]...) {
 		if b != 0 {
 			return unresolvedInfinityFee("v4_fee_spacing_invalid")
 		}
 	}
 	fee := binary.BigEndian.Uint32(raw[92:96])
 	tickSpacing := binary.BigEndian.Uint32(raw[124:128])
-	if fee >= infinityMaxLPFee || tickSpacing == 0 || int64(tickSpacing) != spacing || tickSpacing > 32767 {
+	dynamic := fee == infinityDynamicFeeFlag
+	hook := common.BytesToAddress(raw[140:160])
+	if (fee >= infinityMaxLPFee && !dynamic) || (dynamic && hook == (common.Address{})) || tickSpacing == 0 || int64(tickSpacing) != spacing || tickSpacing > 32767 {
 		return unresolvedInfinityFee("v4_fee_spacing_invalid")
 	}
-	if slot == nil || slot.LPFee != fee {
+	if slot == nil || slot.LPFee >= infinityMaxLPFee || (!dynamic && slot.LPFee != fee) {
 		return unresolvedInfinityFee("v4_stored_fee_mismatch")
 	}
 	p0, p1 := slot.ProtocolFee&0xfff, slot.ProtocolFee>>12
@@ -51,6 +50,9 @@ func resolveV4StaticFee(id common.Hash, raw []byte, slot *arb.InfinitySlot0, spa
 		return unresolvedInfinityFee("v4_directional_protocol_fee")
 	}
 	keyData := append([]byte(nil), raw...)
+	if dynamic || hook != (common.Address{}) {
+		return InfinityFeeResolution{KeyData: keyData, Status: "v4_hook_evm_required"}
+	}
 	if p0 != p1 {
 		// Complete v4 metadata supports directional quotes; legacy scalar
 		// consumers must still leave this fee unresolved.

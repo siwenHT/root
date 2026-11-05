@@ -545,7 +545,7 @@ func validPoolRead(pr *PoolReadSpec) bool {
 	case "v3":
 		return pr.Token0 == "" && pr.Token1 == "" && pr.TickSpacing >= 0 && pr.TickSpacing <= 16383
 	case "v4":
-		if common.HexToAddress(pr.Manager) != bscV4Manager || common.HexToAddress(pr.Hook) != (common.Address{}) {
+		if common.HexToAddress(pr.Manager) != bscV4Manager {
 			return false
 		}
 		fallthrough

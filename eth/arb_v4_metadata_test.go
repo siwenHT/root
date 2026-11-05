@@ -2,6 +2,8 @@ package eth
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -27,7 +29,7 @@ func TestV4DirectionalMetadataDoesNotInventLegacyFee(t *testing.T) {
 	if wire["kind"] != "v4" || wire["lp_fee"] != "350" || wire["protocol_fee"] != "385117" {
 		t.Fatal("metadata not retained on wire")
 	}
-	for _, at := range []int{0, 32, 159} {
+	for _, at := range []int{0, 32, 128} {
 		bad := append([]byte(nil), got.KeyData...)
 		bad[at] = 1
 		if len(resolveV4StaticFee(crypto.Keccak256Hash(bad), bad, slot, 4).KeyData) != 0 {
@@ -46,7 +48,7 @@ func TestV4PoolReadGateBindsReviewedManager(t *testing.T) {
 	}
 	for _, mutate := range []func(*PoolReadSpec){
 		func(v *PoolReadSpec) { v.Manager = v.Token0; v.Locator = v.Token0 },
-		func(v *PoolReadSpec) { v.Hook = v.Token0 },
+		func(v *PoolReadSpec) { v.Hook = "bad-address" },
 		func(v *PoolReadSpec) { v.Token1 = "" },
 		func(v *PoolReadSpec) { v.TickSpacing = 0 },
 	} {
@@ -55,5 +57,49 @@ func TestV4PoolReadGateBindsReviewedManager(t *testing.T) {
 		if validPoolRead(&bad) {
 			t.Fatal("invalid v4 read shape accepted")
 		}
+	}
+}
+
+func TestCapturedUniswapHookKeysPreserveSameStateMetadata(t *testing.T) {
+	data, err := os.ReadFile("testdata/uniswap-hook-keys.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []struct {
+		RawKey      string `json:"raw_key"`
+		PoolID      string `json:"pool_id"`
+		LPFee       uint32 `json:"lp_fee"`
+		ProtocolFee uint32 `json:"protocol_fee"`
+		TickSpacing int64  `json:"tick_spacing"`
+		Hook        string `json:"hook"`
+		Dynamic     bool   `json:"dynamic"`
+	}
+	if err = json.Unmarshal(data, &rows); err != nil {
+		t.Fatal(err)
+	}
+	hooked := 0
+	for _, row := range rows {
+		raw := common.FromHex(row.RawKey)
+		got := resolveV4StaticFee(common.HexToHash(row.PoolID), raw, &arb.InfinitySlot0{LPFee: row.LPFee, ProtocolFee: row.ProtocolFee}, row.TickSpacing)
+		if !bytes.Equal(got.KeyData, raw) {
+			t.Fatalf("lost key %s: %+v", row.PoolID, got)
+		}
+		if common.HexToAddress(row.Hook) != (common.Address{}) {
+			hooked++
+			if got.Resolved || got.Num != 0 || got.Den != 0 || got.Status != "v4_hook_evm_required" {
+				t.Fatalf("hook fee treated as scalar: %+v", got)
+			}
+			pr := PoolReadSpec{Kind: "v4", Locator: strings.ToLower(bscV4Manager.Hex()), Manager: strings.ToLower(bscV4Manager.Hex()), PoolKey: row.PoolID, Hook: row.Hook, Token0: common.BytesToAddress(raw[:32]).Hex(), Token1: common.BytesToAddress(raw[32:64]).Hex(), TickSpacing: int32(row.TickSpacing)}
+			if !validPoolRead(&pr) {
+				t.Fatalf("hook read rejected: %+v", pr)
+			}
+			changed := resolveV4StaticFee(common.HexToHash(row.PoolID), raw, &arb.InfinitySlot0{LPFee: 17, ProtocolFee: 0}, row.TickSpacing)
+			if row.Dynamic && !bytes.Equal(changed.KeyData, raw) {
+				t.Fatal("dynamic LP fee update lost identity")
+			}
+		}
+	}
+	if hooked < 12 {
+		t.Fatalf("too few actual hooks: %d", hooked)
 	}
 }

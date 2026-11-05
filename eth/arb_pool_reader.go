@@ -314,7 +314,6 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 	if err != nil {
 		return nil, err
 	}
-	var hook common.Address
 	spacing := spacingHint
 	if spacing <= 0 {
 		return nil, errors.New("arb: infinity tick spacing required for legacy manager")
@@ -355,11 +354,15 @@ func (c *poolCaller) readInfinityStorage(manager common.Address, poolID common.H
 	if err != nil {
 		return nil, err
 	}
-	// Resolve only a verified no-hook key with symmetric protocol fees, read
-	// from this same parent/post-target StateDB. Unknown layouts stay unresolved.
+	// Preserve hook identity and the stored fee from this parent/post-target
+	// StateDB. Swap-time hook fees never become a resolved legacy scalar.
 	fee := c.readV4StaticFee(manager, poolID, slot, spacing)
 	if c.wrapped.Budget().Failed() {
 		return nil, ErrReadBudgetTripped
+	}
+	hook := common.Address{}
+	if len(fee.KeyData) == 160 {
+		hook = common.BytesToAddress(fee.KeyData[140:160])
 	}
 	return &InfinitySnapshot{Manager: manager, PoolKey: poolID, Hook: hook, SqrtPriceX96: slot.SqrtPriceX96, Tick: slot.Tick,
 		Liquidity: liq, BitmapWords: words, InitializedTicks: ticks, CoverageMinTick: int32(minTick), CoverageMaxTick: int32(maxTick),
