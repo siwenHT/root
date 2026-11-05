@@ -55,7 +55,7 @@ func validateMetricBooks(args *GetMetricBooksArgs) (*big.Int, error) {
 	return price, nil
 }
 
-func metricCall(c *poolCaller, target common.Address, data []byte) ([]byte, error) {
+func isolatedPoolCall(c *poolCaller, target common.Address, data []byte) ([]byte, error) {
 	// Metric's view helpers use transient storage to expose their oracle context.
 	// Call on the reader's private copy, reverting even successful helper writes.
 	snapshot := c.wrapped.Snapshot()
@@ -71,7 +71,7 @@ func metricCall(c *poolCaller, target common.Address, data []byte) ([]byte, erro
 }
 
 func readMetricBook(caller *poolCaller, pool common.Address) (MetricBookResult, error) {
-	immutable, err := metricCall(caller, pool, crypto.Keccak256([]byte("getImmutables()"))[:4])
+	immutable, err := isolatedPoolCall(caller, pool, crypto.Keccak256([]byte("getImmutables()"))[:4])
 	if err != nil {
 		return MetricBookResult{}, err
 	}
@@ -84,14 +84,14 @@ func readMetricBook(caller *poolCaller, pool common.Address) (MetricBookResult, 
 	offchain := context
 	offchain.Origin = common.Address{}
 	caller.evm.SetTxContext(offchain)
-	depth, err := metricCall(caller, metricDataProvider, data)
+	depth, err := isolatedPoolCall(caller, metricDataProvider, data)
 	caller.evm.SetTxContext(context)
 	if err != nil {
 		return MetricBookResult{}, err
 	}
 	data = crypto.Keccak256([]byte("slot0(address)"))[:4]
 	data = append(data, common.LeftPadBytes(pool.Bytes(), 32)...)
-	slot, err := metricCall(caller, metricDataProvider, data)
+	slot, err := isolatedPoolCall(caller, metricDataProvider, data)
 	if err != nil {
 		return MetricBookResult{}, err
 	}
