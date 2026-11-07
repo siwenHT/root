@@ -391,7 +391,7 @@ func (api *ArbAPI) simulateCandidate(args SimulateCandidateArgs, auction *Auctio
 		// candidate result must not be discarded because the optional gross seed couldn't
 		// be read (§389 — the client then treats gross as unmeasured, never fabricated).
 		if v3 && out.Complete {
-			payload, err := executorLedgerV3(res.Candidate.Receipt, env.Data, mt)
+			payload, err := executorLedger(res.Candidate.Receipt, env.Data, res.Candidate.ReturnData, mt)
 			if err != nil {
 				out.Complete = false
 				out.ErrCode = err.Error()

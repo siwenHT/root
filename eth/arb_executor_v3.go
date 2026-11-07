@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"strconv"
@@ -18,6 +19,8 @@ const executorRevisionV3 = "proxy-flash-v3"
 
 // Current multi-asset revision: gas-first settlement (V4) behind the same proxy.
 const executorRevisionMultiAsset = "proxy-multi-asset-v6"
+const executorRevisionCompact = "proxy-compact-v1"
+const compactHeaderSize = 75
 
 // Superseded fixed-split multi-asset revision, still decoded on old receipts.
 const executorRevisionMultiAssetV5 = "proxy-multi-asset-v5"
@@ -27,7 +30,7 @@ const executorRevisionTenxDirect = "proxy-tenx-direct-v1"
 const executorRevisionMultiCycle = "proxy-multi-cycle-v1"
 
 func knownExecutorRevision(r string) bool {
-	return r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward || r == executorRevisionTenxDirect || r == executorRevisionMultiCycle
+	return r == executorRevisionCompact || r == executorRevisionV3 || r == executorRevisionMultiAsset || r == executorRevisionMultiAssetV5 || r == executorRevisionLunarDirect || r == executorRevisionLunarForward || r == executorRevisionTenxDirect || r == executorRevisionMultiCycle
 }
 
 var errExecutorEvidence = errors.New("arb: invalid executor v3 evidence")
@@ -42,6 +45,7 @@ var (
 	executeSelectorV3Share      = []byte{0xbc, 0x20, 0xa7, 0x70}
 	executeMultiSelectorFixed   = []byte{0xb8, 0x8e, 0x2b, 0x94}
 	executeMultiSelectorShare   = []byte{0x95, 0xbc, 0xf8, 0xd2}
+	executeCompactSelector      = []byte{0x46, 0xf7, 0x55, 0xa6}
 	executeLunarDirectSelector  = []byte{0x17, 0x05, 0x99, 0x57}
 	executeLunarForwardSelector = []byte{0x2a, 0xb5, 0xe6, 0xb6}
 	executeTenxDirectSelector   = []byte{0x34, 0xce, 0xa7, 0xc3}
@@ -95,6 +99,9 @@ func executeLayoutFor(data []byte) (executeLayout, string, bool) {
 }
 
 func executorRevisionForData(data []byte) (string, bool) {
+	if bytes.HasPrefix(data, executeCompactSelector) {
+		return executorRevisionCompact, true
+	}
 	_, revision, ok := executeLayoutFor(data)
 	return revision, ok
 }
@@ -104,6 +111,13 @@ func executorRevisionForData(data []byte) (string, bool) {
 func validateExecutorEnvelope(to *common.Address, data []byte, gas uint64, mt measureTarget) error {
 	if !mt.measure || to == nil || *to != mt.executor || gas == 0 || len(data) < 4 {
 		return errExecutorEvidence
+	}
+	if bytes.HasPrefix(data, executeCompactSelector) {
+		if len(data) < compactHeaderSize || uint64(binary.BigEndian.Uint32(data[4:8])) != gas ||
+			binary.BigEndian.Uint16(data[8:10]) > 10_000 || mt.baseToken != directWBNB {
+			return errExecutorEvidence
+		}
+		return nil
 	}
 	layout, _, ok := executeLayoutFor(data)
 	if !ok || len(data) < 4+layout.minWords*32 {
@@ -127,6 +141,36 @@ func validateExecutorEnvelope(to *common.Address, data []byte, gas uint64, mt me
 		return errExecutorEvidence
 	}
 	return nil
+}
+
+func executorLedger(receipt *types.Receipt, data, returned []byte, mt measureTarget) (map[string]any, error) {
+	if !bytes.HasPrefix(data, executeCompactSelector) {
+		return executorLedgerV3(receipt, data, mt)
+	}
+	if receipt == nil || receipt.Status != types.ReceiptStatusSuccessful ||
+		len(data) < compactHeaderSize || len(returned) != 96 {
+		return nil, errExecutorEvidence
+	}
+	t0 := new(big.Int).SetBytes(returned[:32])
+	t2 := new(big.Int).SetBytes(returned[32:64])
+	t3 := new(big.Int).SetBytes(returned[64:])
+	if t2.Cmp(t3) < 0 || t3.Cmp(t0) < 0 {
+		return nil, errExecutorEvidence
+	}
+	payment := new(big.Int).Sub(t2, t3)
+	ceiling := new(big.Int).Sub(t2, t0)
+	ceiling.Mul(ceiling, big.NewInt(int64(binary.BigEndian.Uint16(data[8:10]))))
+	ceiling.Div(ceiling, big.NewInt(10_000))
+	if payment.Cmp(ceiling) > 0 {
+		return nil, errExecutorEvidence
+	}
+	return map[string]any{
+		"executor_revision": executorRevisionCompact, "measurement": "executor_return",
+		"executor": strings.ToLower(mt.executor.Hex()), "base_token": strings.ToLower(mt.baseToken.Hex()),
+		"executor_gas_used": strconv.FormatUint(receipt.GasUsed, 10), "owner_sweep": "0",
+		"retained_t0": t0.String(), "retained_t2": t2.String(), "retained_t3": t3.String(),
+		"builder_payment": payment.String(),
+	}, nil
 }
 
 // Read only our successful transaction receipt. Both events must originate from

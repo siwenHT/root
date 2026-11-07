@@ -50,6 +50,7 @@ type CapabilitiesResult struct {
 	SupportedTxTypes  []uint64       `json:"supported_tx_types"`
 	SupportedVersions []uint64       `json:"supported_versions"`
 	PinSupported      bool           `json:"pin_supported"`
+	CompactExecutor   bool           `json:"compact_executor"`
 	ResourceLimits    map[string]any `json:"resource_limits"`
 }
 
@@ -168,6 +169,7 @@ func (api *ArbAPI) GetCapabilities(args CapabilitiesArgs) (*CapabilitiesResult, 
 		SupportedTxTypes:  []uint64{0, 1, 2}, // legacy/access-list/dynamic-fee
 		SupportedVersions: []uint64{1, 2, 3, 4},
 		PinSupported:      scheme == arb.SchemeHash,
+		CompactExecutor:   true,
 		ResourceLimits: map[string]any{
 			"workers":      api.svc.workers,
 			"queue_depth":  cap(api.svc.queue),

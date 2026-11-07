@@ -288,7 +288,7 @@ func (api *ArbAPI) simulateStateRaw(args SimulateStateRawArgs, auction *AuctionS
 		if res.Class.Status != arb.StatusSuccess || !res.Class.ReceiptTrusted {
 			return out, false
 		}
-		ledger, lerr := executorLedgerV3(res.Receipt, tx.Data(), mt)
+		ledger, lerr := executorLedger(res.Receipt, tx.Data(), res.ReturnData, mt)
 		if lerr != nil {
 			out.Complete = false
 			out.ErrCode = lerr.Error()
@@ -393,7 +393,7 @@ func (api *ArbAPI) SimulateSignedBundle(args SimulateSignedBundleArgs) (*JobIDRe
 				return &arb.JobOutcome{Kind: "signed_bundle", ErrCode: "untrusted_receipt"}, false
 			}
 		}
-		payload, err := executorLedgerV3(res.Outcomes[1].Receipt, txs[1].Data(), mt)
+		payload, err := executorLedger(res.Outcomes[1].Receipt, txs[1].Data(), res.Outcomes[1].ReturnData, mt)
 		if err != nil {
 			out.Complete = false
 			out.ErrCode = err.Error()

@@ -33,9 +33,10 @@ import (
 
 // TargetResult is the outcome of executing one target tx on the isolated copy.
 type TargetResult struct {
-	Class   arb.Classification
-	Receipt *types.Receipt // only trustworthy when Class.ReceiptTrusted
-	UsedGas uint64         // only trustworthy when Class.ReceiptTrusted
+	Class      arb.Classification
+	Receipt    *types.Receipt // only trustworthy when Class.ReceiptTrusted
+	UsedGas    uint64         // only trustworthy when Class.ReceiptTrusted
+	ReturnData []byte
 	// PostState is the isolated, post-target StateDB — non-nil ONLY on a real
 	// success (design §256/§357: target revert creates no quotable post handle).
 	PostState *state.StateDB
@@ -45,9 +46,10 @@ type TargetResult struct {
 
 // PrefixTxOutcome is the classified outcome of one tx within a signed prefix.
 type PrefixTxOutcome struct {
-	Class   arb.Classification
-	Receipt *types.Receipt // trustworthy only when Class.ReceiptTrusted
-	UsedGas uint64         // this tx alone (receipt.GasUsed), trustworthy same condition
+	Class      arb.Classification
+	Receipt    *types.Receipt // trustworthy only when Class.ReceiptTrusted
+	UsedGas    uint64         // this tx alone (receipt.GasUsed), trustworthy same condition
+	ReturnData []byte
 	// RevertData is a bounded copy of the top-level EVM REVERT payload. It is
 	// diagnostic-only and never enters the wire result. RevertDataLen preserves
 	// the original payload length so truncation is explicit in logs.
@@ -312,6 +314,9 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 		receipt.EffectiveGasPrice = new(big.Int).Set(msg.GasPrice)
 		out.Receipt = receipt
 		out.UsedGas = receipt.GasUsed
+		if execution.Err == nil && len(execution.ReturnData) == 96 {
+			out.ReturnData = execution.ReturnData
+		}
 	}
 	return out
 }
@@ -360,6 +365,7 @@ func (x *targetExecutor) executeTarget(tx *types.Transaction, budget *arb.ReadBu
 	if out.Class.ReceiptTrusted {
 		res.Receipt = out.Receipt
 		res.UsedGas = out.UsedGas
+		res.ReturnData = out.ReturnData
 	}
 	if out.Class.Status == arb.StatusSuccess {
 		res.PostState = s.work // isolated post-target state for a quotable handle
