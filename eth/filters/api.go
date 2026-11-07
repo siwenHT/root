@@ -181,7 +181,13 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 // NewPendingTransactionsWithFlapApprovals returns the full pending stream and
 // attaches the original signed approval when the Flap sale needs that prefix.
 func (api *FilterAPI) NewPendingTransactionsWithFlapApprovals(ctx context.Context) (*rpc.Subscription, error) {
-	return api.pendingTransactions(ctx, true, api.sys.backend.SimulateFlapPendingTransaction)
+	backend, ok := api.sys.backend.(interface {
+		SimulateFlapPendingTransaction(context.Context, *types.Transaction) (*types.Receipt, *types.Transaction, error)
+	})
+	if !ok {
+		return nil, rpc.ErrNotificationsUnsupported
+	}
+	return api.pendingTransactions(ctx, true, backend.SimulateFlapPendingTransaction)
 }
 
 type flapPendingApprovalRPC struct {
