@@ -150,6 +150,11 @@ func (b *testBackend) SimulateTransaction(context.Context, *types.Transaction) (
 	return &types.Receipt{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{}}, nil
 }
 
+func (b *testBackend) SimulateFlapPendingTransaction(ctx context.Context, tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+	receipt, err := b.SimulateTransaction(ctx, tx)
+	return receipt, nil, err
+}
+
 func (b *testBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return b.txFeed.Subscribe(ch)
 }

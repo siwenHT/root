@@ -69,6 +69,7 @@ type Backend interface {
 	ChainConfig() *params.ChainConfig
 	HistoryPruningCutoff() uint64
 	SimulateTransaction(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
+	SimulateFlapPendingTransaction(ctx context.Context, tx *types.Transaction) (*types.Receipt, *types.Transaction, error)
 	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeFinalizedHeaderEvent(ch chan<- core.FinalizedHeaderEvent) event.Subscription

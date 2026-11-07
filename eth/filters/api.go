@@ -172,6 +172,30 @@ func (api *FilterAPI) NewPendingTransactionFilter(fullTx *bool) rpc.ID {
 // transaction enters the transaction pool. If fullTx is true the full tx is
 // sent to the client, otherwise the hash is sent.
 func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) (*rpc.Subscription, error) {
+	return api.pendingTransactions(ctx, fullTx != nil && *fullTx, func(ctx context.Context, tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+		receipt, err := api.sys.backend.SimulateTransaction(ctx, tx)
+		return receipt, nil, err
+	})
+}
+
+// NewPendingTransactionsWithFlapApprovals returns the full pending stream and
+// attaches the original signed approval when the Flap sale needs that prefix.
+func (api *FilterAPI) NewPendingTransactionsWithFlapApprovals(ctx context.Context) (*rpc.Subscription, error) {
+	return api.pendingTransactions(ctx, true, api.sys.backend.SimulateFlapPendingTransaction)
+}
+
+type flapPendingApprovalRPC struct {
+	Hash  common.Hash    `json:"hash"`
+	Raw   hexutil.Bytes  `json:"raw"`
+	Token common.Address `json:"token"`
+}
+
+type flapPendingTransactionRPC struct {
+	*ethapi.RPCTransaction
+	Approval flapPendingApprovalRPC `json:"flapApproval"`
+}
+
+func (api *FilterAPI) pendingTransactions(ctx context.Context, fullTx bool, simulate func(context.Context, *types.Transaction) (*types.Receipt, *types.Transaction, error)) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)
 	if !supported {
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
@@ -203,6 +227,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 		type simResult struct {
 			tx         *types.Transaction
 			receipt    *types.Receipt
+			approval   *types.Transaction
 			err        error
 			queuedAt   time.Time
 			startedAt  time.Time
@@ -240,8 +265,8 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 				gopool.Submit(func() {
 					startedAt := time.Now()
 					trace.Record("simulation_started", "", startedAt)
-					receipt, err := api.sys.backend.SimulateTransaction(traceCtx, tx)
-					result := simResult{tx: tx, receipt: receipt, err: err,
+					receipt, approval, err := simulate(traceCtx, tx)
+					result := simResult{tx: tx, receipt: receipt, approval: approval, err: err,
 						queuedAt: queuedAt, startedAt: startedAt, finishedAt: time.Now(), header: header, trace: trace}
 					trace.Record("simulation_finished", pendingOutcome(receipt, err), result.finishedAt)
 					select {
@@ -342,23 +367,33 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) 
 
 				hash := result.tx.Hash()
 
-				// Only this loop owns seen and inflight; failed simulations may retry.
-				seen[hash] = struct{}{}
-				seenOrder = append(seenOrder, hash)
-
-				// 限制 seen map 大小
-				if len(seen) > maxSeenPending && len(seenOrder) > 0 {
-					oldest := seenOrder[0]
-					seenOrder = seenOrder[1:]
-					delete(seen, oldest)
+				// The sale can still succeed on its own if the approval lands first.
+				if result.approval == nil {
+					seen[hash] = struct{}{}
+					seenOrder = append(seenOrder, hash)
+					if len(seen) > maxSeenPending {
+						oldest := seenOrder[0]
+						seenOrder = seenOrder[1:]
+						delete(seen, oldest)
+					}
 				}
 
 				// 立即通知订阅端，无需等待其他交易
 				traceCtx := pendingtrace.WithAttempt(simulationCtx, result.trace)
 				result.trace.Mark("payload_build_begin", "")
-				if fullTx != nil && *fullTx {
+				if fullTx {
 					rpcTx := ethapi.NewRPCPendingTransaction(result.tx, result.header, chainConfig, result.receipt.Logs)
-					notifier.NotifyWithContext(traceCtx, rpcSub.ID, rpcTx)
+					var payload any = rpcTx
+					if result.approval != nil {
+						raw, err := result.approval.MarshalBinary()
+						if err != nil {
+							continue
+						}
+						payload = flapPendingTransactionRPC{rpcTx, flapPendingApprovalRPC{
+							Hash: result.approval.Hash(), Raw: raw, Token: *result.approval.To(),
+						}}
+					}
+					notifier.NotifyWithContext(traceCtx, rpcSub.ID, payload)
 				} else {
 					notifier.NotifyWithContext(traceCtx, rpcSub.ID, hash)
 				}

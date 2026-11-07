@@ -439,13 +439,15 @@ func (b *EthAPIBackend) TxPool() *txpool.TxPool {
 }
 
 func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
-	// select {
-	// case <-ctx.Done():
-	// 	log.Warn("SimulateTransaction Done", ctx.Err())
-	// 	return nil, ctx.Err()
-	// default:
-	// }
+	receipt, _, err := b.simulatePendingTransaction(ctx, tx, false)
+	return receipt, err
+}
 
+func (b *EthAPIBackend) SimulateFlapPendingTransaction(ctx context.Context, tx *types.Transaction) (*types.Receipt, *types.Transaction, error) {
+	return b.simulatePendingTransaction(ctx, tx, true)
+}
+
+func (b *EthAPIBackend) simulatePendingTransaction(ctx context.Context, tx *types.Transaction, withFlapApproval bool) (*types.Receipt, *types.Transaction, error) {
 	var (
 		header *types.Header
 		state  *state.StateDB
@@ -460,7 +462,7 @@ func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Trans
 		stateSource = "canonical_head"
 		latest := b.eth.blockchain.CurrentBlock()
 		if latest == nil {
-			return nil, errors.New("no latest block available")
+			return nil, nil, errors.New("no latest block available")
 		}
 		header = types.CopyHeader(latest)
 		header.Number = new(big.Int).Add(header.Number, big.NewInt(1))
@@ -472,11 +474,11 @@ func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Trans
 		state, err = b.eth.blockchain.StateAt(latest.Root)
 		if err != nil {
 			log.Warn("SimulateTransaction StateAt error", err)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if state == nil {
-		return nil, errors.New("state unavailable for simulation")
+		return nil, nil, errors.New("state unavailable for simulation")
 	}
 	// This is the backend's selected parent, not the earlier batch header.
 	pendingtrace.State(ctx, header.ParentHash, stateSource)
@@ -486,24 +488,21 @@ func (b *EthAPIBackend) SimulateTransaction(ctx context.Context, tx *types.Trans
 	msg, err := core.TransactionToMessage(tx, signer, header.BaseFee)
 	if err != nil {
 		log.Warn("SimulateTransaction TransactionToMessage error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	gasPool := new(core.GasPool)
-	gasPool.AddGas(header.GasLimit)
-
+	var approval *types.Transaction
+	if withFlapApproval && tx.To() != nil && tx.Nonce() != 0 && state.GetNonce(msg.From) == tx.Nonce()-1 {
+		pending, _ := b.TxPoolContentFrom(msg.From)
+		approval = flapPendingApproval(tx, pending)
+	}
 	blockCtx := core.NewEVMBlockContext(header, b.eth.blockchain, nil)
 	evm := vm.NewEVM(blockCtx, state, chainConfig, vm.Config{})
-	evm.SetTxContext(core.NewEVMTxContext(msg))
-	state.SetTxContext(tx.Hash(), 0)
-
-	usedGas := uint64(0)
-	receipt, err := core.ApplyTransactionWithEVM(msg, gasPool, state, header.Number, common.Hash{}, header.Time, tx, &usedGas, evm)
+	receipt, err := applyPendingTransactions(evm, state, header, signer, tx, msg, approval)
 	if err != nil {
 		log.Debug("SimulateTransaction ApplyTransactionWithEVM error", err)
-		return nil, err
 	}
-	return receipt, nil
+	return receipt, approval, err
 }
 
 func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
