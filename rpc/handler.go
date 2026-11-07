@@ -487,7 +487,7 @@ func (h *handler) handleCallMsg(ctx *callProc, reqCtx context.Context, msg *json
 				log.Warn("blacklist account detected from direct rpc", "remoteAddr", h.conn.remoteAddr())
 			}
 			// eth_call returns EVM reverts to the client as JSON-RPC error code 3.
-			if msg.Method == "eth_call" && resp.Error.Code == 3 {
+			if msg.Method == "eth_getLogs" || (msg.Method == "eth_call" && resp.Error.Code == 3) {
 				return resp
 			}
 			logctx = append(logctx, "err", resp.Error.Message)
