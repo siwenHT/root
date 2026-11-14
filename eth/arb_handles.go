@@ -93,7 +93,7 @@ func (a *arbService) pinParent(ident arb.HandleIdentity, parentHash common.Hash,
 	if header == nil {
 		return "", common.Hash{}, errUnknownParentHash
 	}
-	base, err := a.eth.blockchain.StateAt(header.Root)
+	base, err := a.eth.blockchain.StateAt(header)
 	if err != nil {
 		return "", common.Hash{}, errParentUnreadable
 	}

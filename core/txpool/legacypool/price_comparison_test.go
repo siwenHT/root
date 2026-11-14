@@ -30,12 +30,12 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// priceCmpBeforeZeroBaseFee uses the unchanged conversion-based calculation,
-// independent of EffectiveGasTipCmp's fast path. Heap tie breaks are unchanged.
+// priceCmpBeforeZeroBaseFee uses the signed tip API so below-base-fee
+// transactions follow the upstream ordering as well.
 func priceCmpBeforeZeroBaseFee(a, b *types.Transaction, base *uint256.Int) int {
 	if base != nil {
-		aTip, _ := a.EffectiveGasTip(base.ToBig())
-		bTip, _ := b.EffectiveGasTip(base.ToBig())
+		aTip := a.EffectiveGasTipValue(base.ToBig())
+		bTip := b.EffectiveGasTipValue(base.ToBig())
 		if c := aTip.Cmp(bTip); c != 0 {
 			return c
 		}

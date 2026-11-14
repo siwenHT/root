@@ -55,7 +55,7 @@ func TestEnvV3OpcodeNativeParity(t *testing.T) {
 	}
 	parent := gb.Header()
 	for i, b := range chain {
-		base, err := bc.StateAt(parent.Root)
+		base, err := bc.StateAt(parent)
 		if err != nil {
 			t.Fatal(err)
 		}

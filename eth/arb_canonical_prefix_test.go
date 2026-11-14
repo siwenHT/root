@@ -44,7 +44,7 @@ func TestCanonicalPrefixRetainsRevertedNonceAndFee(t *testing.T) {
 	if _, err := bc.InsertChain(blocks); err != nil {
 		t.Fatal(err)
 	}
-	base, err := bc.StateAt(genesis.Root())
+	base, err := bc.StateAt(genesis.Header())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCanonicalPrefixRetainsRevertedNonceAndFee(t *testing.T) {
 	if err != nil || !res.Completed || res.Outcomes[0].Class.Status != arb.StatusReverted || res.Outcomes[1].Class.Status != arb.StatusSuccess {
 		t.Fatalf("canonical reverted prefix did not complete: result=%+v error=%v", res, err)
 	}
-	native, err := bc.StateAt(blocks[0].Root())
+	native, err := bc.StateAt(blocks[0].Header())
 	if err != nil {
 		t.Fatal(err)
 	}

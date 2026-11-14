@@ -20,6 +20,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -182,7 +184,7 @@ func (x *targetExecutor) applyPreamble(evm *vm.EVM, work *state.StateDB, num *bi
 	if beaconRoot != nil {
 		core.ProcessBeaconBlockRoot(*beaconRoot, evm)
 	}
-	if cfg.IsPrague(num, timeSec) || cfg.IsVerkle(num, timeSec) {
+	if cfg.IsPrague(num, timeSec) || cfg.IsUBT(num, timeSec) {
 		core.ProcessParentBlockHash(x.parent.Hash(), evm)
 	}
 }
@@ -199,7 +201,6 @@ func (x *targetExecutor) blockTime() uint64 { return x.parent.Time + 1 }
 // ExecutePrefix (ordered bundle) drive the SAME session so the two paths never drift.
 type execSession struct {
 	header      *types.Header
-	usedGas     uint64
 	blobGasUsed uint64
 	x           *targetExecutor
 	work        *state.StateDB
@@ -243,7 +244,7 @@ func (x *targetExecutor) newExecSession(budget *arb.ReadBudget, env *resolvedBlo
 		num:     num,
 		signer:  types.MakeSigner(x.chain.Config(), num, timeSec),
 		baseFee: baseFee,
-		gp:      new(core.GasPool).AddGas(blockCtx.GasLimit),
+		gp:      core.NewGasPool(blockCtx.GasLimit),
 		budget:  budget,
 	}
 }
@@ -299,7 +300,7 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 	s.work.SetTxContext(tx.Hash(), index)
 
 	receipt, execution, applyErr := core.ApplyTransactionWithEVMResult(
-		msg, s.gp, s.work, s.num, common.Hash{}, s.header.Time, tx, &s.usedGas, s.evm,
+		msg, s.gp, s.work, s.num, common.Hash{}, s.header.Time, tx, s.evm,
 	)
 
 	sig := s.x.collectSignals(s.budget, s.evm, s.work, receipt, applyErr)
@@ -311,7 +312,7 @@ func (s *execSession) applyMessage(msg *core.Message, tx *types.Transaction, ind
 
 		// Native receipt derivation fills this outside ApplyTransactionWithEVM.
 		// Our standalone simulation must expose the actual message gas price.
-		receipt.EffectiveGasPrice = new(big.Int).Set(msg.GasPrice)
+		receipt.EffectiveGasPrice = msg.GasPrice.ToBig()
 		out.Receipt = receipt
 		out.UsedGas = receipt.GasUsed
 		if execution.Err == nil && len(execution.ReturnData) == 96 {
@@ -441,11 +442,11 @@ func (s *execSession) candidateMessage(env CandidateEnvelope) *core.Message {
 		To:                    env.To,
 		From:                  env.From,
 		Nonce:                 env.Nonce,
-		Value:                 val,
+		Value:                 uint256.MustFromBig(val),
 		GasLimit:              env.GasLimit,
-		GasPrice:              gasPrice,
-		GasFeeCap:             feeCap,
-		GasTipCap:             tipCap,
+		GasPrice:              uint256.MustFromBig(gasPrice),
+		GasFeeCap:             uint256.MustFromBig(feeCap),
+		GasTipCap:             uint256.MustFromBig(tipCap),
 		Data:                  env.Data,
 		SkipNonceChecks:       false, // §237: nonce IS checked
 		SkipTransactionChecks: false, // §237: EOA + gaslimit + fee rules ALL checked
@@ -519,10 +520,10 @@ func (x *targetExecutor) runCandidate(
 	metaTx := types.NewTx(&types.DynamicFeeTx{
 		Nonce:     ours.Nonce,
 		To:        ours.To,
-		Value:     msg.Value,
+		Value:     msg.Value.ToBig(),
 		Gas:       ours.GasLimit,
-		GasFeeCap: msg.GasFeeCap,
-		GasTipCap: msg.GasTipCap,
+		GasFeeCap: msg.GasFeeCap.ToBig(),
+		GasTipCap: msg.GasTipCap.ToBig(),
 		Data:      ours.Data,
 	})
 	candOut := s.applyMessage(msg, metaTx, len(signedPrefix))
@@ -629,7 +630,7 @@ func (s *Ethereum) NewTargetExecutorAtHead() (*targetExecutor, error) {
 	if h == nil {
 		return nil, errors.New("arb: no canonical head")
 	}
-	base, err := s.blockchain.StateAt(h.Root)
+	base, err := s.blockchain.StateAt(h)
 	if err != nil {
 		return nil, err
 	}

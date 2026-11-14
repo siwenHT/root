@@ -110,7 +110,7 @@ func TestExecutorV3ActualSignedFlashBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	parent := chain[0].Header()
-	base, err := bc.StateAt(parent.Root)
+	base, err := bc.StateAt(parent)
 	if err != nil {
 		t.Fatal(err)
 	}

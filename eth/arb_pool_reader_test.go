@@ -17,8 +17,9 @@ import (
 
 // returnerCode builds bytecode for a contract that ignores calldata and returns the
 // given data bytes (padded/stored word-aligned). Bytecode:
-//   for each 32-byte chunk i: PUSH32 <chunk> PUSH1 <32*i> MSTORE
-//   PUSH2 <len> PUSH1 0 RETURN
+//
+//	for each 32-byte chunk i: PUSH32 <chunk> PUSH1 <32*i> MSTORE
+//	PUSH2 <len> PUSH1 0 RETURN
 func returnerCode(data []byte) []byte {
 	padded := make([]byte, (len(data)+31)/32*32)
 	copy(padded, data)
@@ -54,7 +55,7 @@ func testPoolCaller(t *testing.T, sdb *state.StateDB, budget *arb.ReadBudget) *p
 	wrapped := newBudgetedStateDB(sdb, budget)
 	blockCtx := vm.BlockContext{
 		CanTransfer: func(vm.StateDB, common.Address, *uint256.Int) bool { return true },
-		Transfer:    func(vm.StateDB, common.Address, common.Address, *uint256.Int) {},
+		Transfer:    func(vm.StateDB, common.Address, common.Address, *uint256.Int, *params.Rules) {},
 		GetHash:     func(uint64) common.Hash { return common.Hash{} },
 		BlockNumber: big.NewInt(1),
 		Time:        1,

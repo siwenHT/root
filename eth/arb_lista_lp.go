@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/arb"
+	"github.com/holiman/uint256"
 )
 
 type GetListaLpStateArgs struct {
@@ -59,7 +60,7 @@ func (api *ArbAPI) GetListaLpState(args GetListaLpStateArgs) (*GetListaLpStateRe
 	}
 	budget := newReadBudget(defaultMaxReads, microsToDuration(args.BudgetMicros))
 	caller := api.svc.eth.newPoolCaller(base, env.header, budget)
-	caller.evm.SetTxContext(vm.TxContext{Origin: common.HexToAddress(args.Sender), GasPrice: price})
+	caller.evm.SetTxContext(vm.TxContext{Origin: common.HexToAddress(args.Sender), GasPrice: uint256.MustFromBig(price)})
 	data, err := isolatedPoolCall(caller, common.HexToAddress(args.Adapter), crypto.Keccak256([]byte("readState()"))[:4])
 	if err != nil {
 		return nil, err

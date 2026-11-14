@@ -49,12 +49,11 @@ func matchesFlapSale(receipt *types.Receipt, token common.Address) bool {
 }
 
 func applyPendingTransactions(evm *vm.EVM, state *state.StateDB, header *types.Header, signer types.Signer, sale *types.Transaction, saleMsg *core.Message, approval *types.Transaction) (*types.Receipt, error) {
-	gasPool := new(core.GasPool).AddGas(header.GasLimit)
-	var usedGas uint64
+	gasPool := core.NewGasPool(header.GasLimit)
 	apply := func(tx *types.Transaction, msg *core.Message, index int) (*types.Receipt, error) {
 		evm.SetTxContext(core.NewEVMTxContext(msg))
 		state.SetTxContext(tx.Hash(), index)
-		return core.ApplyTransactionWithEVM(msg, gasPool, state, header.Number, common.Hash{}, header.Time, tx, &usedGas, evm)
+		return core.ApplyTransactionWithEVM(msg, gasPool, state, header.Number, common.Hash{}, header.Time, tx, evm)
 	}
 	saleIndex := 0
 	if approval != nil {

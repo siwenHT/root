@@ -2,14 +2,15 @@ package legacypool
 
 import (
 	"fmt"
+	"math/big"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
-	"math/big"
-	"testing"
 )
 
 // Fixture reused from the 2026-10-25 reset benchmark. Only the actual scheduler
@@ -33,11 +34,11 @@ type fieldsChain struct {
 	trie   bool
 }
 
-func (c *fieldsChain) StateAt(root common.Hash) (*state.StateDB, error) {
+func (c *fieldsChain) StateAt(header *types.Header) (*state.StateDB, error) {
 	if c.trie {
-		return state.New(root, c.db)
+		return state.New(header.Root, c.db)
 	}
-	return state.NewWithReader(root, c.db, c.reader)
+	return state.NewWithReader(header.Root, c.db, c.reader)
 }
 
 func fieldsHead(old *types.Header, root common.Hash) *types.Header {
@@ -56,7 +57,7 @@ func benchmarkFieldsPool(b *testing.B, accounts int) *LegacyPool {
 	pool := New(config, chain)
 	pool.reserver = newReserver()
 	pool.currentHead.Store(chain.CurrentBlock())
-	pool.currentState, _ = chain.StateAt(types.EmptyRootHash)
+	pool.currentState, _ = chain.StateAt(&types.Header{Root: types.EmptyRootHash})
 	pool.pendingNonces = newNoncer(pool.currentState)
 	pool.gasTip.Store(uint256.NewInt(1))
 	for i := 0; i < accounts+832; i++ {

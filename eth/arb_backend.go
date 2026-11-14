@@ -14,6 +14,7 @@ package eth
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/eth/arb"
 )
 
@@ -62,7 +63,7 @@ func (b *arbStateBackend) Unpin(root common.Hash) error {
 // a single-shot probe and may race with concurrent import (which is exactly why
 // path handles are best-effort and every read re-checks).
 func (b *arbStateBackend) Readable(root common.Hash) bool {
-	_, err := b.eth.blockchain.StateAt(root)
+	_, err := state.New(root, state.NewMPTDatabase(b.eth.blockchain.TrieDB(), b.eth.blockchain.CodeDB()).WithSnapshot(b.eth.blockchain.Snapshots()))
 	return err == nil
 }
 
@@ -71,6 +72,6 @@ func (b *arbStateBackend) Readable(root common.Hash) bool {
 // state indexer/freezer can back the root, so a true result is a proven reader,
 // not a guess.
 func (b *arbStateBackend) CanServeHistoric(root common.Hash) bool {
-	_, err := b.eth.blockchain.HistoricState(root)
+	_, err := state.New(root, state.NewHistoricDatabase(b.eth.blockchain.TrieDB(), b.eth.blockchain.CodeDB()))
 	return err == nil
 }

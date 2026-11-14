@@ -62,16 +62,16 @@ func TestApplyMessageThroughBudgetedWrapper(t *testing.T) {
 		To:                    &contract,
 		From:                  sender,
 		Nonce:                 0,
-		Value:                 big.NewInt(0),
+		Value:                 uint256.NewInt(0),
 		GasLimit:              100_000,
-		GasPrice:              big.NewInt(0),
-		GasFeeCap:             big.NewInt(0),
-		GasTipCap:             big.NewInt(0),
+		GasPrice:              uint256.NewInt(0),
+		GasFeeCap:             uint256.NewInt(0),
+		GasTipCap:             uint256.NewInt(0),
 		Data:                  nil,
 		SkipNonceChecks:       false,
 		SkipTransactionChecks: false,
 	}
-	gp := new(core.GasPool).AddGas(30_000_000)
+	gp := core.NewGasPool(30_000_000)
 
 	// SetTxContext as the design requires per tx (§8.2).
 	sdb.SetTxContext(common.HexToHash("0x01"), 0)
