@@ -494,7 +494,7 @@ func (h *handler) handleCallMsg(ctx *callProc, reqCtx context.Context, msg *json
 				log.Warn("blacklist account detected from direct rpc", "remoteAddr", h.conn.remoteAddr())
 			}
 			// eth_call returns EVM reverts to the client as JSON-RPC error code 3.
-			if msg.Method == "eth_getLogs" || (msg.Method == "eth_call" && resp.Error.Code == 3) {
+			if msg.Method == "eth_call" && resp.Error.Code == 3 {
 				return resp
 			}
 			logctx = append(logctx, "err", resp.Error.Message)
@@ -504,7 +504,13 @@ func (h *handler) handleCallMsg(ctx *callProc, reqCtx context.Context, msg *json
 
 			xForward := reqCtx.Value("X-Forwarded-For")
 			logctx = append(logctx, "X-Forwarded-For", xForward)
-			h.log.Warn("Served "+msg.Method, logctx...)
+			// Clients poll eth_getLogs while the chain advances, so errors such as
+			// "header not found" are routine traffic and are logged at info level.
+			if msg.Method == "eth_getLogs" {
+				h.log.Info("Served "+msg.Method, logctx...)
+			} else {
+				h.log.Warn("Served "+msg.Method, logctx...)
+			}
 		} else {
 			h.log.Debug("Served "+msg.Method, logctx...)
 		}
