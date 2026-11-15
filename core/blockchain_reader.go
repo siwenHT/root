@@ -459,6 +459,9 @@ func (bc *BlockChain) HasState(hash common.Hash) bool {
 // in the database or not, caching it if present.
 func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 	// Check first that the block itself is known
+	if !bc.HasBlock(hash, number) {
+		return false
+	}
 	block := bc.GetBlock(hash, number)
 	if block == nil {
 		return false
