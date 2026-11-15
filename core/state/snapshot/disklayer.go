@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/triedb"
+	"golang.org/x/sync/singleflight"
 )
 
 // diskLayer is a low level persistent snapshot built on top of a key-value store.
@@ -34,6 +35,8 @@ type diskLayer struct {
 	diskdb ethdb.KeyValueStore // Key-value store containing the base snapshot
 	triedb *triedb.Database    // Trie node cache for reconstruction purposes
 	cache  *fastcache.Cache    // Cache to avoid hitting the disk for direct access
+
+	storageLoads singleflight.Group
 
 	root  common.Hash // Root hash of the base snapshot
 	stale bool        // Signals that the layer became stale (state progressed)
@@ -170,7 +173,22 @@ func (dl *diskLayer) Storage(accountHash, storageHash common.Hash) ([]byte, erro
 		snapshotCleanStorageReadMeter.Mark(int64(len(blob)))
 		return blob, nil
 	}
-	// Cache doesn't contain storage slot, pull from disk and cache for later
+	value, _, shared := dl.storageLoads.Do(string(key), func() (interface{}, error) {
+		return dl.loadStorage(accountHash, storageHash, key), nil
+	})
+	blob := value.([]byte)
+	if shared {
+		// Each caller owns its bytes, including callers sharing the same load.
+		blob = common.CopyBytes(blob)
+	}
+	return blob, nil
+}
+
+func (dl *diskLayer) loadStorage(accountHash, storageHash common.Hash, key []byte) []byte {
+	// Another load may have filled the cache before this flight started.
+	if blob, found := dl.cache.HasGet(nil, key); found {
+		return blob
+	}
 	blob := rawdb.ReadStorageSnapshot(dl.diskdb, accountHash, storageHash)
 	dl.cache.Set(key, blob)
 
@@ -180,7 +198,7 @@ func (dl *diskLayer) Storage(accountHash, storageHash common.Hash) ([]byte, erro
 	} else {
 		snapshotCleanStorageInexMeter.Mark(1)
 	}
-	return blob, nil
+	return blob
 }
 
 // Update creates a new layer on top of the existing snapshot diff tree with
