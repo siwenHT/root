@@ -222,7 +222,7 @@ func TestBlockSubscription(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 		genesis      = &core.Genesis{
 			Config:  params.TestChainConfig,
 			BaseFee: big.NewInt(params.InitialBaseFee),
@@ -277,7 +277,7 @@ func TestPendingTxFilter(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 
 		transactions = []*types.Transaction{
 			types.NewTransaction(0, common.HexToAddress("0xb794f5ea0ba39494ce83a213fffba74279579268"), new(big.Int), 0, new(big.Int), nil),
@@ -333,7 +333,7 @@ func TestPendingTxFilterFullTx(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 
 		transactions = []*types.Transaction{
 			types.NewTransaction(0, common.HexToAddress("0xb794f5ea0ba39494ce83a213fffba74279579268"), new(big.Int), 0, new(big.Int), nil),
@@ -389,7 +389,7 @@ func TestLogFilterCreation(t *testing.T) {
 	var (
 		db     = rawdb.NewMemoryDatabase()
 		_, sys = newTestFilterSystem(db, Config{})
-		api    = NewFilterAPI(sys, false)
+		api    = NewFilterAPI(sys)
 
 		testCases = []struct {
 			crit    FilterCriteria
@@ -436,7 +436,7 @@ func TestInvalidLogFilterCreation(t *testing.T) {
 	var (
 		db     = rawdb.NewMemoryDatabase()
 		_, sys = newTestFilterSystem(db, Config{LogQueryLimit: 1000})
-		api    = NewFilterAPI(sys, false)
+		api    = NewFilterAPI(sys)
 	)
 
 	// different situations where log filter creation should fail.
@@ -467,7 +467,7 @@ func TestInvalidGetLogsRequest(t *testing.T) {
 		}
 		db, blocks, _    = core.GenerateChainWithGenesis(genesis, ethash.NewFaker(), 10, func(i int, gen *core.BlockGen) {})
 		_, sys           = newTestFilterSystem(db, Config{LogQueryLimit: 10})
-		api              = NewFilterAPI(sys, false)
+		api              = NewFilterAPI(sys)
 		blockHash        = blocks[0].Hash()
 		unknownBlockHash = common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
 	)
@@ -531,7 +531,7 @@ func TestInvalidGetRangeLogsRequest(t *testing.T) {
 	var (
 		db     = rawdb.NewMemoryDatabase()
 		_, sys = newTestFilterSystem(db, Config{})
-		api    = NewFilterAPI(sys, false)
+		api    = NewFilterAPI(sys)
 	)
 
 	if _, err := api.GetLogs(context.Background(), FilterCriteria{FromBlock: big.NewInt(2), ToBlock: big.NewInt(1)}); err != errInvalidBlockRange {
@@ -547,7 +547,7 @@ func TestExceedLogQueryLimit(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{LogQueryLimit: 5})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 		gspec        = &core.Genesis{
 			Config:  params.TestChainConfig,
 			Alloc:   types.GenesisAlloc{},
@@ -555,7 +555,7 @@ func TestExceedLogQueryLimit(t *testing.T) {
 		}
 	)
 
-	_, err := gspec.Commit(db, triedb.NewDatabase(db, nil))
+	_, err := gspec.Commit(db, triedb.NewDatabase(db, nil), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +632,7 @@ func TestLogFilter(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 
 		firstAddr      = common.HexToAddress("0x1111111111111111111111111111111111111111")
 		secondAddr     = common.HexToAddress("0x2222222222222222222222222222222222222222")
@@ -737,7 +737,7 @@ func TestPendingTxFilterDeadlock(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{Timeout: timeout})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 		done         = make(chan struct{})
 	)
 
@@ -802,7 +802,7 @@ func TestTransactionReceiptsSubscription(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 		key1, _      = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr1        = crypto.PubkeyToAddress(key1.PublicKey)
 		signer       = types.NewLondonSigner(big.NewInt(1))
@@ -938,7 +938,7 @@ func TestVoteSubscription(t *testing.T) {
 	var (
 		db           = rawdb.NewMemoryDatabase()
 		backend, sys = newTestFilterSystem(db, Config{Timeout: 5 * time.Minute})
-		api          = NewFilterAPI(sys, false)
+		api          = NewFilterAPI(sys)
 		votes        = []*types.VoteEnvelope{
 			&types.VoteEnvelope{
 				VoteAddress: types.BLSPublicKey{},

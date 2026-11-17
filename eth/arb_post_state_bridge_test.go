@@ -68,7 +68,7 @@ func TestPostStatePoolCallerReadsTargetEffect(t *testing.T) {
 	}
 
 	parent := chain[0].Header()
-	base, err := bc.StateAt(parent.Root)
+	base, err := bc.StateAt(parent)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -119,10 +119,5 @@ func (s *budgetedStateDB) GetStateAndCommittedState(addr common.Address, slot co
 	return s.StateDB.GetStateAndCommittedState(addr, slot)
 }
 
-func (s *budgetedStateDB) GetStorageRoot(addr common.Address) common.Hash {
-	s.charge(arb.ReadStorageRoot)
-	return s.StateDB.GetStorageRoot(addr)
-}
-
 // compile-time assertion that the wrapper still satisfies vm.StateDB.
 var _ vm.StateDB = (*budgetedStateDB)(nil)

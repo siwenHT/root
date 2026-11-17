@@ -32,7 +32,7 @@ func pendingPipelineClient(t *testing.T, simulate func(context.Context, *types.T
 	db := rawdb.NewMemoryDatabase()
 	t.Cleanup(func() { db.Close() })
 	b := &pendingPipelineBackend{testBackend: &testBackend{db: db}, simulate: simulate}
-	api := NewFilterAPI(NewFilterSystem(b, Config{}), false)
+	api := NewFilterAPI(NewFilterSystem(b, Config{}))
 	t.Cleanup(api.events.txsSub.Unsubscribe)
 	server := rpc.NewServer()
 	if err := server.RegisterName("eth", api); err != nil {

@@ -29,7 +29,7 @@ func TestPendingArrivalTimingConfiguration(t *testing.T) {
 		}
 	}
 	t.Setenv("ARB_TX_ARRIVE_TIMEOUT_MS", "25")
-	f := NewTxFetcher(nil, nil, nil, nil)
+	f := NewTxFetcher(nil, nil, nil, nil, nil)
 	if f.arriveTimeout != 25*time.Millisecond || f.arriveSlack != 6250*time.Microsecond {
 		t.Fatal("production constructor ignored configured timing")
 	}
@@ -38,7 +38,7 @@ func TestPendingArrivalTimingConfiguration(t *testing.T) {
 func TestPendingArrivalShortWaitRequestsAtConfiguredDeadline(t *testing.T) {
 	testTransactionFetcherParallel(t, txFetcherTest{
 		init: func() *TxFetcher {
-			f := NewTxFetcher(func(common.Hash) bool { return false }, nil, func(string, []common.Hash) error { return nil }, nil)
+			f := NewTxFetcher(nil, func(common.Hash, byte) error { return nil }, nil, func(string, []common.Hash) error { return nil }, nil)
 			f.arriveTimeout, f.arriveSlack = pendingArrivalTiming("25")
 			return f
 		},

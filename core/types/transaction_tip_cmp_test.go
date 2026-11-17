@@ -26,15 +26,17 @@ import (
 )
 
 // effectiveGasTipCmpBeforeZeroBaseFee is the comparator before the zero-base-fee
-// fast path. Keep the uint256 conversion and ignored errors as the oracle, even
-// for malformed fee caps which cannot enter the pool.
+// fast path, including the upstream signed fallback on conversion errors.
 func effectiveGasTipCmpBeforeZeroBaseFee(a, b *Transaction, baseFee *uint256.Int) int {
 	if baseFee == nil {
 		return a.GasTipCapCmp(b)
 	}
 	var aTip, bTip uint256.Int
-	a.calcEffectiveGasTip(&aTip, baseFee)
-	b.calcEffectiveGasTip(&bTip, baseFee)
+	errA := a.calcEffectiveGasTip(&aTip, baseFee)
+	errB := b.calcEffectiveGasTip(&bTip, baseFee)
+	if errA != nil || errB != nil {
+		return a.EffectiveGasTipValue(baseFee.ToBig()).Cmp(b.EffectiveGasTipValue(baseFee.ToBig()))
+	}
 	return aTip.Cmp(&bTip)
 }
 

@@ -60,7 +60,7 @@ func isolatedPoolCall(c *poolCaller, target common.Address, data []byte) ([]byte
 	// Call on the reader's private copy, reverting even successful helper writes.
 	snapshot := c.wrapped.Snapshot()
 	defer c.wrapped.RevertToSnapshot(snapshot)
-	result, _, err := c.evm.Call(c.caller, target, data, c.gasCap, uint256.NewInt(0))
+	result, _, err := c.evm.Call(c.caller, target, data, vm.NewGasBudget(c.gasCap), uint256.NewInt(0))
 	if c.wrapped.Budget().Failed() {
 		return nil, ErrReadBudgetTripped
 	}
@@ -116,7 +116,7 @@ func (api *ArbAPI) GetMetricBooks(args GetMetricBooksArgs) (*GetMetricBooksResul
 	}
 	budget := newReadBudget(defaultMaxReads, microsToDuration(args.BudgetMicros))
 	caller := api.svc.eth.newPoolCaller(base, env.header, budget)
-	caller.evm.SetTxContext(vm.TxContext{Origin: common.HexToAddress(args.Sender), GasPrice: price})
+	caller.evm.SetTxContext(vm.TxContext{Origin: common.HexToAddress(args.Sender), GasPrice: uint256.MustFromBig(price)})
 	books := make([]MetricBookResult, len(args.Pools))
 	for i, pool := range args.Pools {
 		book, readErr := readMetricBook(caller, common.HexToAddress(pool))

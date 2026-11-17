@@ -50,7 +50,7 @@ func runEVMCall(t *testing.T, base vm.StateDB, addr common.Address, budget *arb.
 
 	blockCtx := vm.BlockContext{
 		CanTransfer: func(vm.StateDB, common.Address, *uint256.Int) bool { return true },
-		Transfer:    func(vm.StateDB, common.Address, common.Address, *uint256.Int) {},
+		Transfer:    func(vm.StateDB, common.Address, common.Address, *uint256.Int, *params.Rules) {},
 		GetHash:     func(uint64) common.Hash { return common.Hash{} },
 		Coinbase:    common.Address{},
 		BlockNumber: big.NewInt(1),
@@ -67,7 +67,7 @@ func runEVMCall(t *testing.T, base vm.StateDB, addr common.Address, budget *arb.
 	// err here; each test asserts on the budget/cancel state instead. The point of
 	// this test is that the wrapper survives a real EVM run and counts/cancels
 	// correctly, not that the call always succeeds.
-	_, _, _ = evm.Call(origin, addr, nil, 10_000_000, uint256.NewInt(0))
+	_, _, _ = evm.Call(origin, addr, nil, vm.NewGasBudget(10_000_000), uint256.NewInt(0))
 	return wrapped
 }
 
