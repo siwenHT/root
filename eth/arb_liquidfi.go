@@ -134,7 +134,7 @@ func (api *ArbAPI) GetLiquidFiState(args GetLiquidFiStateArgs) (*GetLiquidFiStat
 		if parent == nil {
 			return nil, errors.New("arb: LiquidFi parent unavailable")
 		}
-		base, err := chain.StateAt(parent.Root)
+		base, err := chain.StateAt(parent)
 		if err != nil {
 			return nil, err
 		}
