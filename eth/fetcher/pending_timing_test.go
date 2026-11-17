@@ -16,7 +16,7 @@ func TestPendingTimingSeparatesAnnouncementWaitAndRequestScheduling(t *testing.T
 	clock := new(mclock.Simulated)
 	base := time.Now()
 	requested := make(chan struct{}, 1)
-	f := NewTxFetcherForTests(func(common.Hash) bool { return false }, nil,
+	f := NewTxFetcherForTests(nil, func(common.Hash, byte) error { return nil }, nil,
 		func(string, []common.Hash) error { requested <- struct{}{}; return nil }, nil,
 		clock, func() time.Time { return base.Add(time.Duration(clock.Now())) }, nil)
 	step := make(chan struct{})
@@ -68,7 +68,7 @@ func TestPendingTimingSeparatesAnnouncementWaitAndRequestScheduling(t *testing.T
 func TestPendingTimingRetainsRequestFailure(t *testing.T) {
 	clock := new(mclock.Simulated)
 	base := time.Now()
-	f := NewTxFetcherForTests(func(common.Hash) bool { return false }, nil,
+	f := NewTxFetcherForTests(nil, func(common.Hash, byte) error { return nil }, nil,
 		func(string, []common.Hash) error { return errors.New("peer disconnected") }, nil,
 		clock, func() time.Time { return base.Add(time.Duration(clock.Now())) }, nil)
 	step := make(chan struct{})

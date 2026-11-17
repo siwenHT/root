@@ -490,7 +490,7 @@ func decodeBig(s string) (*big.Int, error) {
 		return v, nil
 	}
 	v, ok := new(big.Int).SetString(s, 10)
-	if !ok || v.Sign() < 0 {
+	if !ok || v.Sign() < 0 || v.BitLen() > 256 {
 		return nil, errors.New("bad integer")
 	}
 	return v, nil

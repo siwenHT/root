@@ -101,7 +101,7 @@ func (s *Ethereum) newPoolCaller(base *state.StateDB, parent *types.Header, budg
 // return bytes. It fails if the budget tripped (cancel latched) or the call errored
 // (revert / out-of-gas). It NEVER returns a fabricated value on failure.
 func (c *poolCaller) staticCall(addr common.Address, calldata []byte) ([]byte, error) {
-	ret, _, err := c.evm.StaticCall(c.caller, addr, calldata, c.gasCap)
+	ret, _, err := c.evm.StaticCall(c.caller, addr, calldata, vm.NewGasBudget(c.gasCap))
 	if c.wrapped.Budget().Failed() {
 		return nil, ErrReadBudgetTripped
 	}
@@ -500,7 +500,7 @@ func (s *Ethereum) NewPoolCallerAtHead(maxReads uint64, wall time.Duration) (*po
 	if h == nil {
 		return nil, errors.New("arb: no canonical head")
 	}
-	base, err := s.blockchain.StateAt(h.Root)
+	base, err := s.blockchain.StateAt(h)
 	if err != nil {
 		return nil, err
 	}

@@ -97,7 +97,7 @@ func TestAuctionOverlayExecutionIsolation(t *testing.T) {
 	if work.GetState(pool, common.Hash{}) != (common.Hash{}) || work.GetState(pool, untouched) != old {
 		t.Fatal("zero diff semantics")
 	}
-	canonical, err := bc.StateAt(x.parent.Root)
+	canonical, err := bc.StateAt(x.parent)
 	if err != nil {
 		t.Fatal(err)
 	}

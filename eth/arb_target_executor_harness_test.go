@@ -57,7 +57,7 @@ func TestExecutorMatchesNativeProcess(t *testing.T) {
 		gen.AddTx(tx)
 	})
 
-	// Build a blockchain holding the generated states so we can StateAt(parent.Root).
+	// Build a blockchain holding the generated states so we can StateAt(parent).
 	bc, err := core.NewBlockChain(db, gspec, ethash.NewFaker(), core.DefaultConfig().WithStateScheme(rawdb.HashScheme))
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestExecutorMatchesNativeProcess(t *testing.T) {
 		nativeReceipt := receipts[i][0]
 		tx := chain[i].Transactions()[0]
 
-		base, err := bc.StateAt(parent.Root)
+		base, err := bc.StateAt(parent)
 		if err != nil {
 			t.Fatalf("block %d: StateAt(parent): %v", i, err)
 		}
@@ -133,7 +133,7 @@ func TestExecutorCoreErrorInvalid(t *testing.T) {
 	}
 
 	parent := chain[0].Header()
-	base, err := bc.StateAt(parent.Root)
+	base, err := bc.StateAt(parent)
 	if err != nil {
 		t.Fatal(err)
 	}

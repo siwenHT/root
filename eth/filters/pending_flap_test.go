@@ -40,7 +40,7 @@ func TestPendingFlapApprovalNotification(t *testing.T) {
 		pendingPipelineBackend: &pendingPipelineBackend{testBackend: &testBackend{db: db}},
 		approval:               approval,
 	}
-	api := NewFilterAPI(NewFilterSystem(backend, Config{}), false)
+	api := NewFilterAPI(NewFilterSystem(backend, Config{}))
 	t.Cleanup(api.events.txsSub.Unsubscribe)
 	server := rpc.NewServer()
 	if err := server.RegisterName("eth", api); err != nil {
