@@ -2,12 +2,13 @@ package eth
 
 import (
 	"errors"
+	"math/big"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/arb"
-	"math/big"
-	"strings"
 )
 
 type GetEllipsisStateArgs struct {
@@ -191,7 +192,7 @@ func (api *ArbAPI) GetEllipsisState(args GetEllipsisStateArgs) (*GetEllipsisStat
 		if parent == nil {
 			return nil, errors.New("arb: Ellipsis parent unavailable")
 		}
-		base, err := chain.StateAt(parent.Root)
+		base, err := chain.StateAt(parent)
 		if err != nil {
 			return nil, err
 		}
