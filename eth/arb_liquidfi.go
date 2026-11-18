@@ -15,9 +15,14 @@ import (
 var liquidFiEntry = common.HexToAddress("0x114b11ae066a7785452c4570b42fff1b7fa5b001")
 var liquidFiPricing = common.HexToAddress("0x19f45175e813338fc79e972601a0cec7182bddc8")
 var liquidFiVault = common.HexToAddress("0x8d6fcf96253cd9c828b7c5d37ebcc1e1f0d7aa5e")
-var liquidFiTokens = [2]common.Address{common.HexToAddress("0x55d398326f99059ff775485246999027b3197955"), common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")}
+var liquidFiUSDT = common.HexToAddress("0x55d398326f99059ff775485246999027b3197955")
+var liquidFiPairs = [2][2]common.Address{
+	{liquidFiUSDT, common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")},
+	{liquidFiUSDT, common.HexToAddress("0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d")},
+}
 
 type GetLiquidFiStateArgs struct {
+	PairID       uint64       `json:"pair_id"`
 	ParentHash   string       `json:"parent_hash"`
 	RequestID    string       `json:"request_id"`
 	PostHandle   string       `json:"post_handle"`
@@ -47,7 +52,7 @@ func liquidFiCall(c *poolCaller, address common.Address, signature string, args 
 	return c.staticCall(address, data)
 }
 
-func readLiquidFiState(c *poolCaller) (*GetLiquidFiStateResult, error) {
+func readLiquidFiState(c *poolCaller, pairID uint64, tokens [2]common.Address) (*GetLiquidFiStateResult, error) {
 	for _, item := range []struct {
 		signature string
 		expected  common.Address
@@ -61,7 +66,8 @@ func readLiquidFiState(c *poolCaller) (*GetLiquidFiStateResult, error) {
 		}
 	}
 	implSlot := common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
-	priceSlot := common.HexToHash("0xd61fc50f5da629347f6bd9d3d325fba6241c04ec01b687e5d89c356860cfe3f6")
+	pairWord := common.LeftPadBytes(new(big.Int).SetUint64(pairID).Bytes(), 32)
+	priceSlot := crypto.Keccak256Hash(pairWord, common.FromHex("0x8759f18911d145bf318ed8280c3612d855b1eb13a1ec427ab54ed53d55d77d05"))
 	result := &GetLiquidFiStateResult{Packed: c.wrapped.GetState(liquidFiPricing, priceSlot).Hex(), Implementation: common.BytesToAddress(c.wrapped.GetState(liquidFiPricing, implSlot).Bytes()).Hex()}
 	blockRoot := crypto.Keccak256Hash(common.FromHex(result.Packed), common.HexToHash("0x8759f18911d145bf318ed8280c3612d855b1eb13a1ec427ab54ed53d55d77d0d").Bytes())
 	blockSlot := crypto.Keccak256Hash(common.LeftPadBytes(c.evm.Context.BlockNumber.Bytes(), 32), blockRoot.Bytes())
@@ -71,8 +77,8 @@ func readLiquidFiState(c *poolCaller) (*GetLiquidFiStateResult, error) {
 		args      [][]byte
 		out       *string
 	}{
-		{"getPairGlobalConfig(uint256)", [][]byte{{1}}, &result.MaxInput},
-		{"getPairCumulatives(uint256)", [][]byte{{1}}, &result.Cumulative},
+		{"getPairGlobalConfig(uint256)", [][]byte{pairWord}, &result.MaxInput},
+		{"getPairCumulatives(uint256)", [][]byte{pairWord}, &result.Cumulative},
 		{"paused()", nil, &result.Paused},
 	} {
 		data, err := liquidFiCall(c, liquidFiPricing, item.signature, item.args...)
@@ -81,7 +87,7 @@ func readLiquidFiState(c *poolCaller) (*GetLiquidFiStateResult, error) {
 		}
 		*item.out = hexutil.Encode(data)
 	}
-	for i, token := range liquidFiTokens {
+	for i, token := range tokens {
 		data, err := liquidFiCall(c, token, "balanceOf(address)", liquidFiVault.Bytes())
 		if err != nil {
 			return nil, err
@@ -97,7 +103,11 @@ func readLiquidFiState(c *poolCaller) (*GetLiquidFiStateResult, error) {
 // Reads canonical parent or the already simulated target handle. Head reads use
 // the child block number too, so epoch counters and expiries match execution.
 func (api *ArbAPI) GetLiquidFiState(args GetLiquidFiStateArgs) (*GetLiquidFiStateResult, error) {
-	if args.BudgetMicros == 0 || !isID32Wire(args.ParentHash) {
+	pairID := args.PairID
+	if pairID == 0 {
+		pairID = 1
+	}
+	if args.BudgetMicros == 0 || !isID32Wire(args.ParentHash) || pairID > uint64(len(liquidFiPairs)) {
 		return nil, errors.New("arb: invalid LiquidFi request")
 	}
 	budget := newReadBudget(defaultMaxReads, microsToDuration(args.BudgetMicros))
@@ -142,7 +152,7 @@ func (api *ArbAPI) GetLiquidFiState(args GetLiquidFiStateArgs) (*GetLiquidFiStat
 		child.Number = new(big.Int).Add(parent.Number, big.NewInt(1))
 		caller = api.svc.eth.newPoolCaller(base, child, budget)
 	}
-	result, err := readLiquidFiState(caller)
+	result, err := readLiquidFiState(caller, pairID, liquidFiPairs[pairID-1])
 	if err != nil {
 		return nil, err
 	}

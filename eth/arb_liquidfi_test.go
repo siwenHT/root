@@ -1,12 +1,13 @@
 package eth
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/arb"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/arb"
 )
 
 func TestLiquidFiReadsThePostHandleAndChild(t *testing.T) {
@@ -33,17 +34,20 @@ func TestLiquidFiReadsThePostHandleAndChild(t *testing.T) {
 	entry[13] = byte(len(entry))
 	entry = append(entry, common.FromHex("0x5b73"+liquidFiPricing.Hex()[2:]+"60005260206000f3")...)
 
-	// Both global config/cumulatives return storage[0] and NUMBER.
-	data := common.FromHex("0x6000546000524360205260406000f3")
+	// Both pair getters return storage[pairID] and NUMBER.
+	data := common.FromHex("0x600435546000524360205260406000f3")
 	post.SetCode(liquidFiEntry, entry, 0)
 	post.SetCode(liquidFiPricing, data, 0)
-	for _, token := range liquidFiTokens {
+	for i, token := range []common.Address{liquidFiPairs[0][0], liquidFiPairs[0][1], liquidFiPairs[1][1]} {
 		post.SetCode(token, common.FromHex("0x60005460005260206000f3"), 0)
-		post.SetState(token, common.Hash{}, common.BigToHash(big.NewInt(73)))
+		post.SetState(token, common.Hash{}, common.BigToHash(big.NewInt(73+int64(i))))
 	}
-	post.SetState(liquidFiPricing, common.Hash{}, common.BigToHash(big.NewInt(42)))
+	post.SetState(liquidFiPricing, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(42)))
+	post.SetState(liquidFiPricing, common.BigToHash(big.NewInt(2)), common.BigToHash(big.NewInt(43)))
 	packed := common.HexToHash("0x123456")
 	post.SetState(liquidFiPricing, common.HexToHash("0xd61fc50f5da629347f6bd9d3d325fba6241c04ec01b687e5d89c356860cfe3f6"), packed)
+	pair2Packed := common.HexToHash("0x223456")
+	post.SetState(liquidFiPricing, common.HexToHash("523df94085064d8812898fdc1a67af7c36868a02a577bc16d15b892c787dd9de"), pair2Packed)
 	blockRoot := crypto.Keccak256Hash(packed.Bytes(), common.HexToHash("0x8759f18911d145bf318ed8280c3612d855b1eb13a1ec427ab54ed53d55d77d0d").Bytes())
 	blockNumber, _ := new(big.Int).SetString(validEnvForExecutor(x).Number, 10)
 	blockSlot := crypto.Keccak256Hash(common.LeftPadBytes(blockNumber.Bytes(), 32), blockRoot.Bytes())
@@ -65,6 +69,24 @@ func TestLiquidFiReadsThePostHandleAndChild(t *testing.T) {
 	if new(big.Int).SetBytes(common.FromHex(result.Balances[0])).Uint64() != 73 {
 		t.Fatal("reader lost post-target token balances")
 	}
+	args.PairID = 2
+	result, err = (&ArbAPI{svc: svc}).GetLiquidFiState(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Packed != pair2Packed.Hex() || new(big.Int).SetBytes(common.FromHex(result.Balances[1])).Uint64() != 75 {
+		t.Fatalf("pair 2 read the wrong price or USDC balance: %+v", result)
+	}
+	for _, encoded := range []string{result.MaxInput, result.Cumulative} {
+		if new(big.Int).SetBytes(common.FromHex(encoded)[:32]).Uint64() != 43 {
+			t.Fatal("reader used the wrong pair argument")
+		}
+	}
+	args.PairID = 3
+	if _, err := (&ArbAPI{svc: svc}).GetLiquidFiState(args); err == nil {
+		t.Fatal("accepted an unsupported pair")
+	}
+	args.PairID = 0
 	if len(x.base.GetCode(liquidFiEntry)) != 0 {
 		t.Fatal("post state leaked into parent")
 	}
