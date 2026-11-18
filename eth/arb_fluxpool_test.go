@@ -19,7 +19,16 @@ import (
 )
 
 func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	raw, err := os.ReadFile("testdata/fluxpool-state.json")
+	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, readFluxPoolState, (*ArbAPI).GetFluxPoolState)
+}
+
+func TestSquadBinStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
+	checkPreparedPoolStateFixture(t, "testdata/squad-bin-state.json", squadBinManager, false, readSquadBinState, (*ArbAPI).GetSquadBinState)
+}
+
+func checkPreparedPoolStateFixture(t *testing.T, path string, contract common.Address, bindsTime bool, read func(*poolCaller) ([]byte, error), get func(*ArbAPI, GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error)) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +75,12 @@ func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 	header.Time = fixture.Timestamp
 	header.Number = new(big.Int).SetUint64(fixture.Block)
 	caller := newPoolCallerOver(chain, base, header, newReadBudget(defaultMaxReads, 5*time.Second))
-	got, err := readFluxPoolState(caller)
+	got, err := read(caller)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if hexutil.Encode(got) != fixture.Data {
-		t.Fatal("real FluxPool state mismatch")
+		t.Fatal("captured state mismatch")
 	}
 	svc, err := (&Ethereum{blockchain: chain}).newArbService(arbServiceConfig{})
 	if err != nil {
@@ -94,22 +103,24 @@ func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := GetFluxPoolStateArgs{ParentHash: x.parent.Hash().Hex(), RequestID: identity.Identity, PostHandle: child, BlockEnv: env, BudgetMicros: 5_000_000}
-	result, err := (&ArbAPI{svc: svc}).GetFluxPoolState(args)
+	result, err := get(&ArbAPI{svc: svc}, args)
 	if err != nil {
 		t.Fatal(err)
 	}
 	expected := common.FromHex(fixture.Data)
 	// The first two state words bind the reader to its prepared block and time.
-	copy(expected[:32], common.LeftPadBytes(new(big.Int).SetUint64(x.parent.Number.Uint64()+1).Bytes(), 32))
-	copy(expected[32:64], common.LeftPadBytes(new(big.Int).SetUint64(fixture.Timestamp).Bytes(), 32))
+	if bindsTime {
+		copy(expected[:32], common.LeftPadBytes(new(big.Int).SetUint64(x.parent.Number.Uint64()+1).Bytes(), 32))
+		copy(expected[32:64], common.LeftPadBytes(new(big.Int).SetUint64(fixture.Timestamp).Bytes(), 32))
+	}
 	if result.Data != hexutil.Encode(expected) || result.Boot != svc.boot || result.EnvHash == "" {
 		t.Fatal("wrong post-handle state or environment")
 	}
 	args.ParentHash = common.Hash{}.Hex()
-	if _, err := (&ArbAPI{svc: svc}).GetFluxPoolState(args); err == nil {
+	if _, err := get(&ArbAPI{svc: svc}, args); err == nil {
 		t.Fatal("accepted foreign parent")
 	}
-	if len(x.base.GetCode(fluxPoolRouter)) != 0 {
+	if len(x.base.GetCode(contract)) != 0 {
 		t.Fatal("reader changed canonical parent")
 	}
 }

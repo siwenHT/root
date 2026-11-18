@@ -106,6 +106,10 @@ type GetFluxPoolStateResult struct {
 
 // Both parent and post-handle reads use the exact prepared child environment.
 func (api *ArbAPI) GetFluxPoolState(args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+	return api.readPreparedPoolState(args, readFluxPoolState)
+}
+
+func (api *ArbAPI) readPreparedPoolState(args GetFluxPoolStateArgs, read func(*poolCaller) ([]byte, error)) (*GetFluxPoolStateResult, error) {
 	if args.BudgetMicros == 0 || !isID32Wire(args.ParentHash) {
 		return nil, errors.New("arb: invalid FluxPool request")
 	}
@@ -164,7 +168,7 @@ func (api *ArbAPI) GetFluxPoolState(args GetFluxPoolStateArgs) (*GetFluxPoolStat
 			caller = api.svc.eth.newPoolCaller(base, env.header, budget)
 		}
 	}
-	result, err := readFluxPoolState(caller)
+	result, err := read(caller)
 	if err != nil {
 		return nil, err
 	}
