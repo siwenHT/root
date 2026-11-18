@@ -86,3 +86,25 @@ func TestMetricBooksUsePostStateChildAndIsolatedCalls(t *testing.T) {
 		t.Fatal("accepted malformed external pool address")
 	}
 }
+
+func TestMetricBNCBDepthKeepsOtherViewGasCaps(t *testing.T) {
+	x, _, chain := prefixFixture(t)
+	defer chain.Stop()
+	caller := newPoolCallerOver(chain, x.base, x.parent, newReadBudget(defaultMaxReads, time.Second))
+	ordinary := common.HexToAddress("0x0000000000000000000000000000000000000033")
+	// Return 32 bytes. Only the two-argument depth entry expands memory by 1 MiB,
+	// which costs more than viewGas and less than the BNCB depth allowance.
+	trivial := common.FromHex("0x60206000f3")
+	lens := common.FromHex("0x60443614600c5760206000f35b6001621000005260206000f3")
+	for _, pool := range []common.Address{metricBNCBUSDT, ordinary} {
+		caller.wrapped.SetCode(pool, trivial, 0)
+	}
+	caller.wrapped.SetCode(metricDataProvider, lens, 0)
+	book, err := readMetricBook(caller, metricBNCBUSDT)
+	if err != nil || book.Data == "" || book.Slot0 == "" || book.Immutable == "" {
+		t.Fatalf("BNCB depth read failed: %+v, %v", book, err)
+	}
+	if _, err := readMetricBook(caller, ordinary); err != ErrViewCallReverted {
+		t.Fatalf("ordinary depth must keep the existing gas cap, got %v", err)
+	}
+}

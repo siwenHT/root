@@ -13,7 +13,10 @@ import (
 	"github.com/holiman/uint256"
 )
 
-var metricDataProvider = common.HexToAddress("0x9bb15fe2b214e37d19a6c59ee7b132e787fdfb2a")
+var (
+	metricDataProvider = common.HexToAddress("0x9bb15fe2b214e37d19a6c59ee7b132e787fdfb2a")
+	metricBNCBUSDT     = common.HexToAddress("0x4f482c2f161ac3303336e9ffe7d5a2aa462799da")
+)
 
 type GetMetricBooksArgs struct {
 	RequestID    string       `json:"request_id"`
@@ -84,7 +87,12 @@ func readMetricBook(caller *poolCaller, pool common.Address) (MetricBookResult, 
 	offchain := context
 	offchain.Origin = common.Address{}
 	caller.evm.SetTxContext(offchain)
-	depth, err := isolatedPoolCall(caller, metricDataProvider, data)
+	depthCaller := *caller
+	if pool == metricBNCBUSDT {
+		// The 100-bin BNCB/USDT depth query exceeds the ordinary view cap.
+		depthCaller.gasCap = 5_000_000
+	}
+	depth, err := isolatedPoolCall(&depthCaller, metricDataProvider, data)
 	caller.evm.SetTxContext(context)
 	if err != nil {
 		return MetricBookResult{}, err
