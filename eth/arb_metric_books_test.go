@@ -87,22 +87,22 @@ func TestMetricBooksUsePostStateChildAndIsolatedCalls(t *testing.T) {
 	}
 }
 
-func TestMetricBNCBDepthKeepsOtherViewGasCaps(t *testing.T) {
+func TestMetricLargeDepthKeepsOtherViewGasCaps(t *testing.T) {
 	x, _, chain := prefixFixture(t)
 	defer chain.Stop()
 	caller := newPoolCallerOver(chain, x.base, x.parent, newReadBudget(defaultMaxReads, time.Second))
-	ordinary := common.HexToAddress("0x0000000000000000000000000000000000000033")
+	deep := common.HexToAddress("0x06c24ec733b33fb9f57f4c2ca1f3a4fab16b686e")
+	ordinary := common.HexToAddress("0x213de872f182ef96ae7025e13224237acd4bc562")
 	// Return 32 bytes. Only the two-argument depth entry expands memory by 1 MiB,
 	// which costs more than viewGas and less than the BNCB depth allowance.
-	trivial := common.FromHex("0x60206000f3")
 	lens := common.FromHex("0x60443614600c5760206000f35b6001621000005260206000f3")
-	for _, pool := range []common.Address{metricBNCBUSDT, ordinary} {
-		caller.wrapped.SetCode(pool, trivial, 0)
-	}
+	// Return getImmutables-shaped words with 100 or 26 bins starting at zero.
+	caller.wrapped.SetCode(deep, common.FromHex("0x6063610140526101606000f3"), 0)
+	caller.wrapped.SetCode(ordinary, common.FromHex("0x6019610140526101606000f3"), 0)
 	caller.wrapped.SetCode(metricDataProvider, lens, 0)
-	book, err := readMetricBook(caller, metricBNCBUSDT)
+	book, err := readMetricBook(caller, deep)
 	if err != nil || book.Data == "" || book.Slot0 == "" || book.Immutable == "" {
-		t.Fatalf("BNCB depth read failed: %+v, %v", book, err)
+		t.Fatalf("large depth read failed: %+v, %v", book, err)
 	}
 	if _, err := readMetricBook(caller, ordinary); err != ErrViewCallReverted {
 		t.Fatalf("ordinary depth must keep the existing gas cap, got %v", err)

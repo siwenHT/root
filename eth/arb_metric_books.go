@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"strings"
@@ -15,7 +16,6 @@ import (
 
 var (
 	metricDataProvider = common.HexToAddress("0x9bb15fe2b214e37d19a6c59ee7b132e787fdfb2a")
-	metricBNCBUSDT     = common.HexToAddress("0x4f482c2f161ac3303336e9ffe7d5a2aa462799da")
 )
 
 type GetMetricBooksArgs struct {
@@ -88,9 +88,14 @@ func readMetricBook(caller *poolCaller, pool common.Address) (MetricBookResult, 
 	offchain.Origin = common.Address{}
 	caller.evm.SetTxContext(offchain)
 	depthCaller := *caller
-	if pool == metricBNCBUSDT {
-		// The 100-bin BNCB/USDT depth query exceeds the ordinary view cap.
-		depthCaller.gasCap = 5_000_000
+	// getImmutables encodes the inclusive int16 bin bounds in words 9 and 10.
+	// The ordinary view cap covers the 40-bin book but not the 100-bin books.
+	if len(immutable) >= 11*32 {
+		low := int16(binary.BigEndian.Uint16(immutable[9*32+30 : 10*32]))
+		high := int16(binary.BigEndian.Uint16(immutable[10*32+30 : 11*32]))
+		if int32(high)-int32(low) >= 40 {
+			depthCaller.gasCap = 5_000_000
+		}
 	}
 	depth, err := isolatedPoolCall(&depthCaller, metricDataProvider, data)
 	caller.evm.SetTxContext(context)
