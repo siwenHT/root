@@ -19,14 +19,33 @@ import (
 )
 
 func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, readFluxPoolState, (*ArbAPI).GetFluxPoolState)
+	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", readFluxPoolState, (*ArbAPI).GetFluxPoolState)
 }
 
 func TestSquadBinStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	checkPreparedPoolStateFixture(t, "testdata/squad-bin-state.json", squadBinManager, false, readSquadBinState, (*ArbAPI).GetSquadBinState)
+	checkPreparedPoolStateFixture(t, "testdata/squad-bin-state.json", squadBinManager, false, "", readSquadBinState, func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+		return api.GetSquadBinState(GetSquadBinStateArgs{GetFluxPoolStateArgs: args})
+	})
 }
 
-func checkPreparedPoolStateFixture(t *testing.T, path string, contract common.Address, bindsTime bool, read func(*poolCaller) ([]byte, error), get func(*ArbAPI, GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error)) {
+func TestSquadBinKeyedStateAgainstTwoRealBSCContractsAndPostHandle(t *testing.T) {
+	for _, id := range []string{
+		"0x13cf45c434e945e043df18a6e022e5fbbd24311755b9b910025fec263c1d759d",
+		"0x61c3557aae1c6d0c8945baf1afce2d2af0aa7a4e16356745b9dd34020ba2f003",
+	} {
+		t.Run(id, func(t *testing.T) {
+			read := func(c *poolCaller) ([]byte, error) {
+				return readSquadBin(c, common.HexToHash(id), true)
+			}
+			get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+				return api.GetSquadBinState(GetSquadBinStateArgs{GetFluxPoolStateArgs: args, PoolID: id})
+			}
+			checkPreparedPoolStateFixture(t, "testdata/squad-bin-multipool-state.json", squadBinManager, false, id, read, get)
+		})
+	}
+}
+
+func checkPreparedPoolStateFixture(t *testing.T, path string, contract common.Address, bindsTime bool, poolID string, read func(*poolCaller) ([]byte, error), get func(*ArbAPI, GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error)) {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -39,10 +58,25 @@ func checkPreparedPoolStateFixture(t *testing.T, path string, contract common.Ad
 			Code    hexutil.Bytes               `json:"code"`
 			Storage map[common.Hash]common.Hash `json:"storage"`
 		} `json:"allocation"`
-		Data string `json:"data"`
+		Data  string `json:"data"`
+		Pools []struct {
+			PoolID string `json:"pool_id"`
+			Data   string `json:"data"`
+		} `json:"pools"`
 	}
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if poolID != "" {
+		for _, pool := range fixture.Pools {
+			if pool.PoolID == poolID {
+				fixture.Data = pool.Data
+				break
+			}
+		}
+		if fixture.Data == "" {
+			t.Fatal("missing captured pool")
+		}
 	}
 	cfg := *params.TestChainConfig
 	cfg.ChainID = big.NewInt(56)
