@@ -1,0 +1,43 @@
+{
+  "scope": "FluxPool BNCB/USDT, native pool_id reader and prepared post-handle",
+  "fixture_sha256": "2ebce37531c72e39d9c463ddfcc971233931a2ff80d9c6cf4ae6812e79a831d6",
+  "checks": [
+    {
+      "name": "imports",
+      "returncode": 0,
+      "seconds": 17.56
+    },
+    {
+      "name": "focused",
+      "returncode": 0,
+      "seconds": 53.9
+    },
+    {
+      "name": "build",
+      "returncode": 0,
+      "seconds": 134.99
+    },
+    {
+      "name": "test",
+      "returncode": 1,
+      "seconds": 30.57
+    },
+    {
+      "name": "lint",
+      "returncode": 1,
+      "seconds": 30.56
+    },
+    {
+      "name": "generate",
+      "returncode": 1,
+      "seconds": 30.72
+    },
+    {
+      "name": "baddeps",
+      "returncode": 0,
+      "seconds": 3.15
+    }
+  ],
+  "blocked_checks": "Full test, lint and check_generate did not execute: GitHub downloads timed out at 198.18.0.167:443.",
+  "user_exception": "2026-11-19: user explicitly approved focused validation and production health acceptance for this change."
+}

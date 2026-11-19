@@ -22,6 +22,23 @@ func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", readFluxPoolState, (*ArbAPI).GetFluxPoolState)
 }
 
+func TestFluxPoolBncbStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
+	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolBncb, fluxPoolBncbTokens) }
+	get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+		args.PoolID = fluxPoolBncb.Hex()
+		return api.GetFluxPoolState(args)
+	}
+	checkPreparedPoolStateFixture(t, "testdata/fluxpool-bncb-state.json", fluxPoolRouter, true, "", read, get)
+}
+
+func TestFluxPoolStateRejectsUnknownPoolID(t *testing.T) {
+	for _, id := range []string{"bad", common.Hash{}.Hex()} {
+		if _, err := (&ArbAPI{}).GetFluxPoolState(GetFluxPoolStateArgs{PoolID: id}); err == nil {
+			t.Fatal("accepted unsupported FluxPool id")
+		}
+	}
+}
+
 func TestSquadBinStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 	checkPreparedPoolStateFixture(t, "testdata/squad-bin-state.json", squadBinManager, false, "", readSquadBinState, func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
 		return api.GetSquadBinState(GetSquadBinStateArgs{GetFluxPoolStateArgs: args})
