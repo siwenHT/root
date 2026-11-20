@@ -64,3 +64,22 @@ func Test_SplitTagsFlag(t *testing.T) {
 		})
 	}
 }
+
+func TestCacheAllowanceMB(t *testing.T) {
+	t.Parallel()
+	const mib = 1024 * 1024
+	tests := []struct {
+		totalBytes uint64
+		want       int
+	}{
+		{32768 * mib, 10922},
+		{64000 * mib, 21333},
+		{65536 * mib, 39321},
+		{192324 * mib, 115394},
+	}
+	for _, tc := range tests {
+		if got := cacheAllowanceMB(tc.totalBytes); got != tc.want {
+			t.Errorf("cacheAllowanceMB(%d MiB) = %d, want %d", tc.totalBytes/mib, got, tc.want)
+		}
+	}
+}

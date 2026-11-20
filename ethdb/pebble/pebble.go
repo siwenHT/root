@@ -50,7 +50,35 @@ const (
 	// degradationWarnInterval specifies how often warning should be printed if the
 	// leveldb database cannot keep up with requested writes.
 	degradationWarnInterval = time.Minute
+
+	// maxPerMemTableSize caps a single Pebble memtable to 256 MiB so large
+	// database cache budgets keep memory in the read block cache and avoid
+	// multi-gigabyte flush bursts that spike NVMe read latency.
+	maxPerMemTableSize = 256 * 1024 * 1024
+
+	// maxConcurrentCompactions limits background compaction concurrency so
+	// compactions do not saturate SSD queues ahead of block-import state reads.
+	maxConcurrentCompactions = 2
+
+	// memTableNumber is the target number of write buffers used to size each memtable.
+	memTableNumber = 6
 )
+
+func pebbleMemTableSize(cacheMB int) int {
+	maxMemTableSize := (1<<31)<<(^uint(0)>>63) - 1
+	memTableSize := cacheMB * 1024 * 1024 / 2 / memTableNumber
+	if memTableSize > maxPerMemTableSize {
+		memTableSize = maxPerMemTableSize
+	}
+	if memTableSize >= maxMemTableSize {
+		memTableSize = maxMemTableSize - 1
+	}
+	return memTableSize
+}
+
+func pebbleMaxConcurrentCompactions() int {
+	return min(maxConcurrentCompactions, max(1, runtime.NumCPU()))
+}
 
 // Database is a persistent key-value store based on the pebble storage engine.
 // Apart from basic data storage functionality it also supports batch writes and
@@ -188,35 +216,7 @@ func New(file string, cache int, handles int, namespace string, readonly bool) (
 	logger := log.New("database", file)
 	logger.Info("Allocated cache and file handles", "cache", common.StorageSize(cache*1024*1024), "handles", handles)
 
-	// The max memtable size is limited by the uint32 offsets stored in
-	// internal/arenaskl.node, DeferredBatchOp, and flushableBatchEntry.
-	//
-	// - MaxUint32 on 64-bit platforms;
-	// - MaxInt on 32-bit platforms.
-	//
-	// It is used when slices are limited to Uint32 on 64-bit platforms (the
-	// length limit for slices is naturally MaxInt on 32-bit platforms).
-	//
-	// Taken from https://github.com/cockroachdb/pebble/blob/master/internal/constants/constants.go
-	maxMemTableSize := (1<<31)<<(^uint(0)>>63) - 1
-
-	// Four memory tables are configured, each with a default size of 256 MB.
-	// Having multiple smaller memory tables while keeping the total memory
-	// limit unchanged allows writes to be flushed more smoothly. This helps
-	// avoid compaction spikes and mitigates write stalls caused by heavy
-	// compaction workloads.
-	memTableNumber := 6
-	memTableSize := cache * 1024 * 1024 / 2 / memTableNumber
-
-	// The memory table size is currently capped at maxMemTableSize-1 due to a
-	// known bug in the pebble where maxMemTableSize is not recognized as a
-	// valid size.
-	//
-	// TODO use the maxMemTableSize as the maximum table size once the issue
-	// in pebble is fixed.
-	if memTableSize >= maxMemTableSize {
-		memTableSize = maxMemTableSize - 1
-	}
+	memTableSize := pebbleMemTableSize(cache)
 	logger.Info("Allocated memory table size", "memory table", common.StorageSize(memTableSize))
 
 	db := &Database{
@@ -256,9 +256,9 @@ func New(file string, cache int, handles int, namespace string, readonly bool) (
 		// allowed memtables to accommodate temporary spikes.
 		MemTableStopWritesThreshold: memTableNumber * 2, //TODO(Nathan): check this change
 
-		// The default compaction concurrency(1 thread),
-		// Here use all available CPUs for faster compaction.
-		MaxConcurrentCompactions: runtime.NumCPU,
+		// Cap background compaction concurrency to avoid saturating SSD read
+		// queues during block import.
+		MaxConcurrentCompactions: pebbleMaxConcurrentCompactions,
 
 		// Per-level options. Options for at least one level must be specified. The
 		// options for the last level are used for all subsequent levels.
