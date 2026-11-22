@@ -19,23 +19,38 @@ import (
 )
 
 func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", readFluxPoolState, (*ArbAPI).GetFluxPoolState)
+	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolID) }
+	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", read, (*ArbAPI).GetFluxPoolState)
 }
 
-func TestFluxPoolBncbStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolBncb, fluxPoolBncbTokens) }
-	get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
-		args.PoolID = fluxPoolBncb.Hex()
-		return api.GetFluxPoolState(args)
+func TestFluxPoolKeyedStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		pool string
+	}{
+		{"bncb", "0x780f5bd4c41f15177aa365e5fc5cfd8ae00b8573e2501305ebae61fca04d49a0"},
+		{"qqqb", "0xcfa1d6662364c8928c6872a6ca932812d45c9812498f31384f94e3197f30e485"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			read := func(c *poolCaller) ([]byte, error) {
+				return readFluxPool(c, common.HexToHash(test.pool))
+			}
+			get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+				args.PoolID = common.HexToHash("0x1234").Hex()
+				if _, err := api.GetFluxPoolState(args); err == nil {
+					t.Fatal("accepted unregistered FluxPool id")
+				}
+				args.PoolID = test.pool
+				return api.GetFluxPoolState(args)
+			}
+			checkPreparedPoolStateFixture(t, "testdata/fluxpool-"+test.name+"-state.json", fluxPoolRouter, true, "", read, get)
+		})
 	}
-	checkPreparedPoolStateFixture(t, "testdata/fluxpool-bncb-state.json", fluxPoolRouter, true, "", read, get)
 }
 
-func TestFluxPoolStateRejectsUnknownPoolID(t *testing.T) {
-	for _, id := range []string{"bad", common.Hash{}.Hex()} {
-		if _, err := (&ArbAPI{}).GetFluxPoolState(GetFluxPoolStateArgs{PoolID: id}); err == nil {
-			t.Fatal("accepted unsupported FluxPool id")
-		}
+func TestFluxPoolStateRejectsMalformedPoolID(t *testing.T) {
+	if _, err := (&ArbAPI{}).GetFluxPoolState(GetFluxPoolStateArgs{PoolID: "bad"}); err == nil {
+		t.Fatal("accepted malformed FluxPool id")
 	}
 }
 

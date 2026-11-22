@@ -18,20 +18,27 @@ var fluxPoolVault = common.HexToAddress("0x0f8e0136f09e8b188d21eddf17f65522f81f7
 var fluxPoolFeeManager = common.HexToAddress("0x25ba19c2971c901aed02c184a69a9ec311ac41f2")
 var fluxPoolRegistry = common.HexToAddress("0x00000000000004533fe15556b1e086bb1a72ceae")
 var fluxPoolID = common.HexToHash("0xa3b94efb3bde9749d7e2735e0dd4a4c9a7b502bb3c6c44ae30fd35b2563038ae")
-var fluxPoolBncb = common.HexToHash("0x780f5bd4c41f15177aa365e5fc5cfd8ae00b8573e2501305ebae61fca04d49a0")
-var fluxPoolBncbTokens = [2]common.Address{common.HexToAddress("0x4902c5ebc598265ed2212b559b042de8a5eeec3f"), common.HexToAddress("0x55d398326f99059ff775485246999027b3197955")}
-var fluxPoolTokens = [2]common.Address{common.HexToAddress("0x55d398326f99059ff775485246999027b3197955"), common.HexToAddress("0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c")}
 
-func readFluxPoolState(c *poolCaller) ([]byte, error) {
-	return readFluxPool(c, fluxPoolID, fluxPoolTokens)
-}
-
-func readFluxPool(c *poolCaller, pool common.Hash, tokens [2]common.Address) ([]byte, error) {
+func readFluxPool(c *poolCaller, pool common.Hash) ([]byte, error) {
 	if c.wrapped.GetCodeHash(fluxPoolRouter) != common.HexToHash("0x3ea0e37498544aea8437f5a506a308f49f7a2f8f8c7927bf95c1e8163bf16129") ||
 		common.BytesToAddress(c.wrapped.GetState(fluxPoolEntry, common.HexToHash("0x1")).Bytes()) != fluxPoolRouter ||
 		common.BytesToAddress(c.wrapped.GetState(fluxPoolEntry, common.HexToHash("0x2")).Bytes()) != fluxPoolVault ||
 		common.BytesToAddress(c.wrapped.GetState(fluxPoolRouter, common.HexToHash("0xd")).Bytes()) != fluxPoolFeeManager {
 		return nil, errors.New("arb: unsupported FluxPool deployment")
+	}
+	// The router's pool record starts with the token addresses in swap direction order.
+	slot := new(big.Int).SetBytes(crypto.Keccak256(pool.Bytes(), common.HexToHash("0x7").Bytes()))
+	var words [11]common.Hash
+	for i := range words {
+		words[i] = c.wrapped.GetState(fluxPoolRouter, common.BigToHash(slot))
+		slot.Add(slot, common.Big1)
+	}
+	if c.wrapped.Budget().Failed() {
+		return nil, ErrReadBudgetTripped
+	}
+	tokens := [2]common.Address{common.BytesToAddress(words[0][:]), common.BytesToAddress(words[1][:])}
+	if tokens[0] == (common.Address{}) || tokens[1] == (common.Address{}) || tokens[0] == tokens[1] {
+		return nil, errors.New("arb: unregistered FluxPool pool id")
 	}
 	registryData := append(crypto.Keccak256([]byte("ownerOf(uint256)"))[:4], common.LeftPadBytes([]byte{2}, 32)...)
 	settlerData, err := c.staticCall(fluxPoolRegistry, registryData)
@@ -84,10 +91,8 @@ func readFluxPool(c *poolCaller, pool common.Hash, tokens [2]common.Address) ([]
 	}
 	data = append(data, common.LeftPadBytes([]byte{ready}, 32)...)
 	data = append(data, c.wrapped.GetCodeHash(settler).Bytes()...)
-	base := new(big.Int).SetBytes(crypto.Keccak256(pool.Bytes(), common.HexToHash("0x7").Bytes()))
-	for i := int64(0); i < 11; i++ {
-		slot := common.BigToHash(new(big.Int).Add(base, big.NewInt(i)))
-		data = append(data, c.wrapped.GetState(fluxPoolRouter, slot).Bytes()...)
+	for _, word := range words {
+		data = append(data, word[:]...)
 	}
 	if c.wrapped.Budget().Failed() {
 		return nil, ErrReadBudgetTripped
@@ -113,22 +118,15 @@ type GetFluxPoolStateResult struct {
 
 // Both parent and post-handle reads use the exact prepared child environment.
 func (api *ArbAPI) GetFluxPoolState(args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
-	pool, tokens := fluxPoolID, fluxPoolTokens
+	pool := fluxPoolID
 	if args.PoolID != "" {
 		if !isID32Wire(args.PoolID) {
 			return nil, errors.New("arb: invalid FluxPool pool id")
 		}
 		pool = common.HexToHash(args.PoolID)
-		switch pool {
-		case fluxPoolID:
-		case fluxPoolBncb:
-			tokens = fluxPoolBncbTokens
-		default:
-			return nil, errors.New("arb: unsupported FluxPool pool id")
-		}
 	}
 	return api.readPreparedPoolState(args, func(c *poolCaller) ([]byte, error) {
-		return readFluxPool(c, pool, tokens)
+		return readFluxPool(c, pool)
 	})
 }
 
