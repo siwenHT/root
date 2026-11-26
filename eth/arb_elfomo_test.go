@@ -65,7 +65,7 @@ func TestElfomoBookAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 	header.Time = fixture.Timestamp
 	header.Number = new(big.Int).SetUint64(fixture.Block)
 	caller := newPoolCallerOver(chain, base, header, newReadBudget(defaultMaxReads, 5*time.Second))
-	got, err := readElfomoBook(caller)
+	got, err := readElfomoBook(caller, elfomoTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,5 +115,30 @@ func TestElfomoBookAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 func TestElfomoBookRejectsEmptyRequest(t *testing.T) {
 	if _, err := (&ArbAPI{}).GetElfomoBook(GetElfomoBookArgs{}); err == nil {
 		t.Fatal("accepted empty request")
+	}
+}
+
+func TestElfomoResolveTokens(t *testing.T) {
+	def, err := resolveElfomoTokens("", "")
+	if err != nil || def != elfomoTokens {
+		t.Fatalf("expected legacy default pair, got %v err=%v", def, err)
+	}
+	antb := "0x38dd26788cf2d901e3abf04efe3007d459d0fc53"
+	usdt := "0x55d398326f99059ff775485246999027b3197955"
+	explicit, err := resolveElfomoTokens(antb, usdt)
+	if err != nil || explicit[0] != common.HexToAddress(antb) || explicit[1] != common.HexToAddress(usdt) {
+		t.Fatalf("expected explicit pair, got %v err=%v", explicit, err)
+	}
+	for _, bad := range [][2]string{
+		{antb, ""},
+		{"", usdt},
+		{"0x0000000000000000000000000000000000000000", usdt},
+		{antb, antb},
+		{usdt, antb},
+		{"not-hex", usdt},
+	} {
+		if _, err := resolveElfomoTokens(bad[0], bad[1]); err == nil {
+			t.Fatalf("expected invalid pair error for %v", bad)
+		}
 	}
 }

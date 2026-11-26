@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 
@@ -18,6 +19,8 @@ type GetElfomoBookArgs struct {
 	ParentHash   string       `json:"parent_hash"`
 	RequestID    string       `json:"request_id"`
 	PostHandle   string       `json:"post_handle"`
+	Token0       string       `json:"token0,omitempty"`
+	Token1       string       `json:"token1,omitempty"`
 	BlockEnv     arb.BlockEnv `json:"block_env"`
 	BudgetMicros uint64       `json:"budget_us"`
 }
@@ -29,9 +32,26 @@ type GetElfomoBookResult struct {
 	Data       string `json:"data"`
 }
 
-func readElfomoBook(c *poolCaller) ([]byte, error) {
+func resolveElfomoTokens(token0Raw, token1Raw string) ([2]common.Address, error) {
+	t0s := strings.TrimSpace(token0Raw)
+	t1s := strings.TrimSpace(token1Raw)
+	if t0s == "" && t1s == "" {
+		return elfomoTokens, nil
+	}
+	if !common.IsHexAddress(t0s) || !common.IsHexAddress(t1s) {
+		return [2]common.Address{}, errors.New("arb: invalid Elfomo token pair")
+	}
+	t0 := common.HexToAddress(t0s)
+	t1 := common.HexToAddress(t1s)
+	if t0 == (common.Address{}) || t1 == (common.Address{}) || bytes.Compare(t0.Bytes(), t1.Bytes()) >= 0 {
+		return [2]common.Address{}, errors.New("arb: invalid Elfomo token pair")
+	}
+	return [2]common.Address{t0, t1}, nil
+}
+
+func readElfomoBook(c *poolCaller, tokens [2]common.Address) ([]byte, error) {
 	data := crypto.Keccak256([]byte("getOrderbook(address,address)"))[:4]
-	for _, token := range elfomoTokens {
+	for _, token := range tokens {
 		data = append(data, common.LeftPadBytes(token.Bytes(), 32)...)
 	}
 	return c.staticCall(elfomoHelper, data)
@@ -41,6 +61,10 @@ func readElfomoBook(c *poolCaller) ([]byte, error) {
 func (api *ArbAPI) GetElfomoBook(args GetElfomoBookArgs) (*GetElfomoBookResult, error) {
 	if args.BudgetMicros == 0 || !isID32Wire(args.ParentHash) {
 		return nil, errors.New("arb: invalid Elfomo request")
+	}
+	tokens, err := resolveElfomoTokens(args.Token0, args.Token1)
+	if err != nil {
+		return nil, err
 	}
 	budget := newReadBudget(defaultMaxReads, microsToDuration(args.BudgetMicros))
 	var caller *poolCaller
@@ -91,7 +115,7 @@ func (api *ArbAPI) GetElfomoBook(args GetElfomoBookArgs) (*GetElfomoBookResult, 
 		envHash = hexutil.Encode(digest[:])
 		caller = api.svc.eth.newPoolCaller(base, env.header, budget)
 	}
-	result, err := readElfomoBook(caller)
+	result, err := readElfomoBook(caller, tokens)
 	if err != nil {
 		return nil, err
 	}
