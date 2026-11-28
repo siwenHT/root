@@ -19,7 +19,7 @@ var fluxPoolFeeManager = common.HexToAddress("0x25ba19c2971c901aed02c184a69a9ec3
 var fluxPoolRegistry = common.HexToAddress("0x00000000000004533fe15556b1e086bb1a72ceae")
 var fluxPoolID = common.HexToHash("0xa3b94efb3bde9749d7e2735e0dd4a4c9a7b502bb3c6c44ae30fd35b2563038ae")
 
-func readFluxPool(c *poolCaller, pool common.Hash) ([]byte, error) {
+func readFluxPool(c *poolCaller, pool common.Hash, explicitSettler *common.Address) ([]byte, error) {
 	if c.wrapped.GetCodeHash(fluxPoolRouter) != common.HexToHash("0x3ea0e37498544aea8437f5a506a308f49f7a2f8f8c7927bf95c1e8163bf16129") ||
 		common.BytesToAddress(c.wrapped.GetState(fluxPoolEntry, common.HexToHash("0x1")).Bytes()) != fluxPoolRouter ||
 		common.BytesToAddress(c.wrapped.GetState(fluxPoolEntry, common.HexToHash("0x2")).Bytes()) != fluxPoolVault ||
@@ -40,15 +40,23 @@ func readFluxPool(c *poolCaller, pool common.Hash) ([]byte, error) {
 	if tokens[0] == (common.Address{}) || tokens[1] == (common.Address{}) || tokens[0] == tokens[1] {
 		return nil, errors.New("arb: unregistered FluxPool pool id")
 	}
-	registryData := append(crypto.Keccak256([]byte("ownerOf(uint256)"))[:4], common.LeftPadBytes([]byte{2}, 32)...)
-	settlerData, err := c.staticCall(fluxPoolRegistry, registryData)
-	if err != nil {
-		return nil, err
+	var settler common.Address
+	var settlerData []byte
+	if explicitSettler != nil {
+		settler = *explicitSettler
+		settlerData = common.LeftPadBytes(settler.Bytes(), 32)
+	} else {
+		registryData := append(crypto.Keccak256([]byte("ownerOf(uint256)"))[:4], common.LeftPadBytes([]byte{2}, 32)...)
+		var err error
+		settlerData, err = c.staticCall(fluxPoolRegistry, registryData)
+		if err != nil {
+			return nil, err
+		}
+		if len(settlerData) != 32 {
+			return nil, errors.New("arb: FluxPool settler identity")
+		}
+		settler = common.BytesToAddress(settlerData)
 	}
-	if len(settlerData) != 32 {
-		return nil, errors.New("arb: FluxPool settler identity")
-	}
-	settler := common.BytesToAddress(settlerData)
 	// The production pricing router is the FeeManager's authorized reader.
 	c.caller = fluxPoolRouter
 	feeData := append(common.FromHex("0x9a8f07fc"), pool.Bytes()...)
@@ -102,6 +110,7 @@ func readFluxPool(c *poolCaller, pool common.Hash) ([]byte, error) {
 
 type GetFluxPoolStateArgs struct {
 	PoolID       string       `json:"pool_id"`
+	Settler      string       `json:"settler,omitempty"`
 	ParentHash   string       `json:"parent_hash"`
 	RequestID    string       `json:"request_id"`
 	PostHandle   string       `json:"post_handle"`
@@ -125,8 +134,16 @@ func (api *ArbAPI) GetFluxPoolState(args GetFluxPoolStateArgs) (*GetFluxPoolStat
 		}
 		pool = common.HexToHash(args.PoolID)
 	}
+	var explicitSettler *common.Address
+	if args.Settler != "" {
+		if !isAddressWire(args.Settler) {
+			return nil, errors.New("arb: invalid FluxPool settler")
+		}
+		addr := common.HexToAddress(args.Settler)
+		explicitSettler = &addr
+	}
 	return api.readPreparedPoolState(args, func(c *poolCaller) ([]byte, error) {
-		return readFluxPool(c, pool)
+		return readFluxPool(c, pool, explicitSettler)
 	})
 }
 

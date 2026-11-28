@@ -19,7 +19,7 @@ import (
 )
 
 func TestFluxPoolStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
-	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolID) }
+	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolID, nil) }
 	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", read, (*ArbAPI).GetFluxPoolState)
 }
 
@@ -33,7 +33,7 @@ func TestFluxPoolKeyedStateAgainstRealBSCContractsAndPostHandle(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			read := func(c *poolCaller) ([]byte, error) {
-				return readFluxPool(c, common.HexToHash(test.pool))
+				return readFluxPool(c, common.HexToHash(test.pool), nil)
 			}
 			get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
 				args.PoolID = common.HexToHash("0x1234").Hex()
@@ -195,4 +195,21 @@ func TestFluxPoolStateRejectsEmptyRequest(t *testing.T) {
 	if _, err := (&ArbAPI{}).GetFluxPoolState(GetFluxPoolStateArgs{}); err == nil {
 		t.Fatal("accepted empty request")
 	}
+}
+
+func TestFluxPoolStateWithExplicitSettlerAndRejectsMalformedSettler(t *testing.T) {
+	settler := common.HexToAddress("0xd52e8e422a352ac1afdc2bd6ec533d41b20acb7b")
+	read := func(c *poolCaller) ([]byte, error) { return readFluxPool(c, fluxPoolID, &settler) }
+	get := func(api *ArbAPI, args GetFluxPoolStateArgs) (*GetFluxPoolStateResult, error) {
+		for _, bad := range []string{"bad", "0xd52E8e422a352aC1aFdc2bd6EC533d41b20acB7B"} {
+			badArgs := args
+			badArgs.Settler = bad
+			if _, err := api.GetFluxPoolState(badArgs); err == nil {
+				t.Fatalf("accepted malformed settler %q", bad)
+			}
+		}
+		args.Settler = "0xd52e8e422a352ac1afdc2bd6ec533d41b20acb7b"
+		return api.GetFluxPoolState(args)
+	}
+	checkPreparedPoolStateFixture(t, "testdata/fluxpool-state.json", fluxPoolRouter, true, "", read, get)
 }
